@@ -14,11 +14,12 @@ app.use(express.json());
 // Servir archivos estáticos (HTML, CSS, JS del frontend)
 app.use(express.static(path.join(__dirname)));
 
-// Directorio para temporal uploads
-if (!fs.existsSync("uploads")) {
-  fs.mkdirSync("uploads");
+// Directorio para temporal uploads (En Vercel debe ser /tmp)
+const uploadDir = process.env.VERCEL ? "/tmp/uploads" : "uploads";
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
 }
-const upload = multer({ dest: "uploads/" });
+const upload = multer({ dest: uploadDir });
 
 // Configuración de la conexión PostgreSQL usando variables del archivo .env o Supabase
 const pool = process.env.DATABASE_URL 
