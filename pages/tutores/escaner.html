@@ -3,22 +3,24 @@
 <head>
   <meta charset="utf-8" />
   <meta content="width=device-width, initial-scale=1.0" name="viewport" />
-  <title>SEP - Escáner de Asistencia</title>
+  <title>SEP - Escáner de Asistencia Tutor</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
   <script src="../../assets/js/tailwind-config.js"></script>
   <link rel="stylesheet" href="../../assets/css/style.css">
+  
   <!-- html5-qrcode para escanear QR con la cámara -->
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 </head>
-<body class="bg-sepBeige font-sans text-gray-800 antialiased selection:bg-sepGold selection:text-sepBurgundyDark bg-fixed" >
+<body class="bg-sepBeige font-sans text-gray-800 antialiased selection:bg-sepGold selection:text-sepBurgundyDark bg-fixed">
   <div class="flex h-screen overflow-hidden relative">
     
     <div id="sidebar-overlay" class="fixed inset-0 bg-sepBurgundyDark/40 backdrop-blur-sm z-30 hidden md:hidden transition-opacity duration-300"></div>
 
     <aside id="sidebar" class="w-72 bg-sepGreenDark text-white flex-shrink-0 flex flex-col sidebar-transition absolute z-40 h-full transform -translate-x-full md:relative md:translate-x-0 shadow-2xl md:shadow-none border-r border-white/5">
+      
       <div class="p-8 border-b border-white/10 flex flex-col items-center relative bg-black/10">
         <button id="close-sidebar-btn" class="absolute top-4 right-4 md:hidden text-white/50 hover:text-white transition-colors">
           <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
@@ -26,31 +28,35 @@
         <div class="w-20 h-20 bg-gradient-to-tr from-sepGold to-sepGoldDark rounded-2xl mb-4 flex items-center justify-center shadow-md transform transition duration-500 hover:scale-105 hover:rotate-3 group cursor-pointer" onclick="window.location.href='dashboard.html'">
           <span class="text-white font-heading font-black text-2xl tracking-tighter transition-colors">SEP</span>
         </div>
-        <h1 class="text-xs font-bold text-center uppercase tracking-widest text-white/90 font-heading">Portal de Prefectura</h1>
-        <p class="text-[10px] text-sepGold mt-2 font-semibold bg-black/30 px-3 py-1 rounded-full uppercase tracking-wider backdrop-blur-sm shadow-inner">Secundaria Técnica No. 87</p>
+        <h1 class="text-xs font-bold text-center uppercase tracking-widest text-white/90 font-heading">Portal de Tutoría</h1>
+        <p class="text-[10px] text-sepGold mt-2 font-semibold bg-black/30 px-3 py-1 rounded-full uppercase tracking-wider backdrop-blur-sm shadow-inner">Conexión Escuela - Grupo</p>
       </div>
 
       <nav class="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
         <a class="flex items-center space-x-3 p-3.5 rounded-xl text-white/70 hover:text-white hover:bg-white/10 hover:translate-x-1 transition-all duration-300 group" href="dashboard.html">
           <svg class="h-5 w-5 group-hover:text-sepGold transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
-          <span class="font-medium tracking-wide">Panel Principal</span>
+          <span class="font-medium tracking-wide">Resumen del Grupo</span>
+        </a>
+        <a class="flex items-center space-x-3 p-3.5 rounded-xl text-white/70 hover:text-white hover:bg-white/10 hover:translate-x-1 transition-all duration-300 group" href="alumnos.html">
+          <svg class="h-5 w-5 group-hover:text-sepGold transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+          <span class="font-medium tracking-wide">Lista de Alumnos</span>
+        </a>
+        <a class="flex items-center space-x-3 p-3.5 rounded-xl text-white/70 hover:text-white hover:bg-white/10 hover:translate-x-1 transition-all duration-300 group" href="asistencias.html">
+          <svg class="h-5 w-5 group-hover:text-sepGold transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+          <span class="font-medium tracking-wide">Asistencia Detallada</span>
         </a>
         <a class="flex items-center space-x-3 p-3.5 rounded-xl bg-gradient-to-r from-sepGold/20 to-transparent border-l-4 border-sepGold shadow-[inset_0_0_20px_rgba(188,149,92,0.05)] text-sepGold group relative overflow-hidden" href="escaner.html">
           <svg class="h-5 w-5 relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm14 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path></svg>
-          <span class="font-semibold relative z-10 font-heading tracking-wide">Escáner QR Asistencia</span>
-        </a>
-        <a class="flex items-center space-x-3 p-3.5 rounded-xl text-white/70 hover:text-white hover:bg-white/10 hover:translate-x-1 transition-all duration-300 group" href="reportes.html">
-          <svg class="h-5 w-5 group-hover:text-sepGold transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-          <span class="font-medium tracking-wide">Gestión de Reportes</span>
+          <span class="font-semibold relative z-10 font-heading tracking-wide">Escáner Asistencia</span>
         </a>
       </nav>
 
       <div class="p-5 bg-black/20 border-t border-white/10 backdrop-blur-sm">
-        <div class="flex items-center space-x-3 group cursor-pointer" onclick="window.location.href='dashboard.html'">
-          <div class="w-10 h-10 rounded-full bg-gradient-to-br from-sepGold to-yellow-600 flex items-center justify-center text-white font-bold shadow-md group-hover:shadow-glow transition-all duration-300">P</div>
+        <div class="flex items-center space-x-3 group cursor-pointer">
+          <div class="w-10 h-10 rounded-full bg-gradient-to-br from-sepGold to-yellow-600 flex items-center justify-center text-white font-bold shadow-md group-hover:shadow-glow transition-all duration-300">T</div>
           <div class="overflow-hidden">
             <p id="sidebar-name" class="text-sm font-bold truncate text-white group-hover:text-sepGold transition-colors font-heading tracking-wide">Cargando...</p>
-            <p id="sidebar-role" class="text-xs text-white/50 font-medium">Prefecto</p>
+            <p id="sidebar-role" class="text-xs text-white/50 font-medium">Tutor Asignado</p>
           </div>
         </div>
       </div>
@@ -63,8 +69,8 @@
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
           </button>
           <div>
-            <h2 class="text-xl md:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r text-sepGreenDark truncate font-heading tracking-tight drop-shadow-sm">Terminal de Acceso</h2>
-            <p class="text-xs text-gray-400 font-medium hidden md:block">Escaneo automático de credenciales dinámicas</p>
+            <h2 class="text-xl md:text-3xl font-extrabold text-sepGreenDark truncate font-heading tracking-tight drop-shadow-sm">Terminal de Acceso</h2>
+            <p class="text-xs text-gray-400 font-medium hidden md:block">Escaneo automático de Código QR</p>
           </div>
         </div>
         <div class="flex items-center space-x-4 md:space-x-6">
@@ -101,11 +107,11 @@
         <aside class="w-full lg:w-96 flex flex-col">
           <div class="bg-white rounded-t-3xl border-t border-l border-r border-gray-100 p-6 shadow-sm z-10">
             <h3 class="font-extrabold text-gray-800 text-lg font-heading">Últimos Registros</h3>
-            <p class="text-xs font-semibold text-blue-600 mt-1 uppercase tracking-wider">Hoy, <span id="hoy-fecha">--</span></p>
+            <p class="text-xs font-semibold text-sepGold mt-1 uppercase tracking-wider">Hoy, <span id="hoy-fecha">--</span></p>
           </div>
           
           <div class="flex-1 bg-gray-50 border border-gray-100 rounded-b-3xl shadow-inner p-4 space-y-3 overflow-y-auto max-h-[400px]" id="logs-container">
-             <!-- Empty state / waiting -->
+             <!-- Empty state -->
              <div id="empty-log" class="h-full flex flex-col items-center justify-center opacity-50 text-center py-10">
                 <svg class="w-10 h-10 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                 <p class="text-sm font-medium text-gray-500">Esperando nuevo registro...</p>
@@ -120,10 +126,11 @@
   <script src="../../assets/js/main.js"></script>
   <script type="module">
     import { checkAuth } from '../../assets/js/auth-guard.js';
+    
     document.addEventListener('DOMContentLoaded', () => {
-      const session = checkAuth(['prefecto']);
+      const session = checkAuth(['tutor']);
       if(session) {
-        document.getElementById('sidebar-name').textContent = session.nombre || 'Prefecto';
+        document.getElementById('sidebar-name').textContent = session.nombre || 'Tutor';
       }
       
       const opts = { weekday: 'long', month: 'long', day: 'numeric' };
@@ -140,7 +147,7 @@
     const scanStatus = document.getElementById('scan-status');
 
     async function onScanSuccess(decodedText, decodedResult) {
-      if (isProcessing) return;
+      if (isProcessing) return; // Evitar múltiples escaneos rápidos
       
       isProcessing = true;
       scanStatus.classList.remove('hidden');
@@ -164,7 +171,7 @@
         setTimeout(() => {
           isProcessing = false;
           scanStatus.classList.add('hidden');
-        }, 2000);
+        }, 2000); // Pausa de 2 segundos antes de permitir otro escaneo
       }
     }
 
@@ -192,6 +199,7 @@
 
     toggleCameraBtn.addEventListener('click', () => {
       if (!isCameraActive) {
+        // Iniciar cámara
         html5QrcodeScanner = new Html5QrcodeScanner(
           "reader",
           { fps: 10, qrbox: {width: 250, height: 250} },
@@ -203,6 +211,7 @@
         toggleCameraBtn.classList.replace('hover:bg-sepGreenDark', 'hover:bg-red-700');
         isCameraActive = true;
       } else {
+        // Detener cámara
         if (html5QrcodeScanner) {
           html5QrcodeScanner.clear().then(() => {
             toggleCameraBtn.textContent = 'Activar Cámara';
@@ -214,6 +223,7 @@
       }
     });
   </script>
+  
   <style>
     /* Estilos personalizados para sobrescribir los del html5-qrcode */
     #reader { border: none !important; width: 100% !important; }

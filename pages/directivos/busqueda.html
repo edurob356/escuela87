@@ -17,6 +17,7 @@
   <!-- Tailwind Config & Custom Styles -->
   <script src="../../assets/js/tailwind-config.js"></script>
   <link rel="stylesheet" href="../../assets/css/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 
 <body class="bg-sepLightGray font-sans text-gray-800 antialiased selection:bg-sepGold selection:text-sepBurgundyDark">
@@ -110,6 +111,10 @@
             <button class="bg-gradient-to-r from-sepBurgundy to-sepBurgundyLight text-white px-8 py-3 rounded-xl text-sm font-bold shadow-md shadow-sepBurgundy/20 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300">
               Buscar
             </button>
+            <button id="btn-nuevo-alumno" class="bg-gradient-to-r from-sepGold to-yellow-600 text-white px-8 py-3 rounded-xl text-sm font-bold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 flex items-center justify-center whitespace-nowrap">
+              <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+              Nuevo Alumno
+            </button>
           </div>
           
           <div class="mt-6 flex flex-wrap gap-2 items-center">
@@ -132,6 +137,72 @@
         </div>
       </div>
     </main>
+  </div>
+
+  <!-- MODAL NUEVO ALUMNO -->
+  <div id="new-student-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden transform transition-all animate-fade-in-up">
+      <div class="bg-gradient-to-r from-sepGreenDark to-sepGreen px-6 py-5 flex justify-between items-center relative">
+        <h3 class="text-lg font-bold text-white relative z-10 flex items-center font-heading">
+          <svg class="w-5 h-5 mr-2 text-sepGold" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path></svg>
+          Registrar Nuevo Alumno
+        </h3>
+        <button id="close-new-student-btn" class="text-white/50 hover:text-white transition-colors relative z-10">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+      <div class="p-6 md:p-8 space-y-4">
+        <div>
+           <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Nombre Completo</label>
+           <input type="text" id="new-nombre" class="w-full text-sm border-gray-200 rounded-xl focus:ring-sepGreen focus:border-sepGreen py-3 px-4 shadow-sm bg-white" placeholder="Ej. Pérez García, Juan">
+        </div>
+        <div>
+           <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Matrícula o CURP</label>
+           <input type="text" id="new-matricula" class="w-full text-sm border-gray-200 rounded-xl focus:ring-sepGreen focus:border-sepGreen py-3 px-4 shadow-sm bg-white" placeholder="Ej. MAT-12345">
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Grado</label>
+            <select id="new-grado" class="w-full text-sm border-gray-200 rounded-xl focus:ring-sepGreen focus:border-sepGreen py-3 px-4 shadow-sm bg-white font-bold text-gray-700">
+              <option value="1°">1°</option>
+              <option value="2°">2°</option>
+              <option value="3°">3°</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Grupo</label>
+            <input type="text" id="new-grupo" class="w-full text-sm border-gray-200 rounded-xl focus:ring-sepGreen focus:border-sepGreen py-3 px-4 shadow-sm bg-white" placeholder="Ej. A">
+          </div>
+        </div>
+      </div>
+      
+      <div class="bg-gray-50 px-6 py-5 border-t border-gray-100 flex justify-end gap-3">
+         <button id="cancel-new-student-btn" class="px-5 py-2.5 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-200 transition-colors">Cancelar</button>
+         <button id="save-new-student-btn" class="bg-sepGreenDark hover:bg-sepGreen text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-2">
+            Guardar y Generar QR
+         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL MOSTRAR QR -->
+  <div id="qr-modal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden transform transition-all animate-fade-in-up text-center relative p-8">
+      <button id="close-qr-btn" class="absolute top-4 right-4 text-gray-400 hover:text-gray-800 transition-colors">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+      </button>
+      <h3 class="text-xl font-bold text-gray-800 mb-2 font-heading">Código de Acceso</h3>
+      <p id="qr-student-name" class="text-sm font-medium text-gray-500 mb-6 uppercase tracking-wider">---</p>
+      
+      <div id="qrcode-container" class="mx-auto flex justify-center bg-white p-4 rounded-xl border-2 border-gray-100 inline-block shadow-sm"></div>
+      
+      <p class="text-xs text-gray-400 mt-6 max-w-xs mx-auto">Este código es único e irrepetible. Por favor imprímelo o guárdalo en tu dispositivo para registrar asistencias.</p>
+      
+      <button id="download-qr-btn" class="mt-6 w-full bg-sepGold hover:bg-yellow-600 text-white font-bold py-3 px-4 rounded-xl shadow-md transition-all flex items-center justify-center gap-2">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+        Descargar Imagen QR
+      </button>
+    </div>
   </div>
 
   <!-- MODAL DE REPORTES Y CITATORIOS -->
@@ -283,6 +354,94 @@
       } finally {
         saveBtn.textContent = 'Generar Expediente';
         saveBtn.disabled = false;
+      }
+    });
+
+    // ── NUEVO ALUMNO LOGIC ───────────────────────────────────────────────────
+    const newStudentModal = document.getElementById('new-student-modal');
+    const qrModal = document.getElementById('qr-modal');
+
+    const closeNewStudentModal = () => {
+      newStudentModal.classList.add('hidden');
+      document.getElementById('new-nombre').value = '';
+      document.getElementById('new-matricula').value = '';
+      document.getElementById('new-grupo').value = '';
+    };
+
+    document.getElementById('btn-nuevo-alumno').addEventListener('click', () => {
+      newStudentModal.classList.remove('hidden');
+    });
+    document.getElementById('close-new-student-btn').addEventListener('click', closeNewStudentModal);
+    document.getElementById('cancel-new-student-btn').addEventListener('click', closeNewStudentModal);
+
+    document.getElementById('save-new-student-btn').addEventListener('click', async () => {
+      const nombre = document.getElementById('new-nombre').value.trim();
+      const matricula = document.getElementById('new-matricula').value.trim();
+      const grado = document.getElementById('new-grado').value;
+      const grupo = document.getElementById('new-grupo').value.trim();
+      
+      if (!nombre) { alert('El nombre es obligatorio'); return; }
+
+      const btn = document.getElementById('save-new-student-btn');
+      btn.textContent = 'Guardando...';
+      btn.disabled = true;
+
+      try {
+        const res = await fetch('/api/alumnos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nombre_completo: nombre, matricula, grado, grupo })
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+          closeNewStudentModal();
+          showQRModal(data.alumno.nombre_completo, data.alumno.codigo_acceso);
+          if(searchInput.value) renderResults(searchInput.value, ''); // refresh if searching
+        } else {
+          alert('Error: ' + data.error);
+        }
+      } catch (err) {
+        alert('Error de conexión: ' + err.message);
+      } finally {
+        btn.innerHTML = 'Guardar y Generar QR';
+        btn.disabled = false;
+      }
+    });
+
+    // ── QR MODAL LOGIC ───────────────────────────────────────────────────────
+    let qrcode = null;
+    const closeQrModal = () => qrModal.classList.add('hidden');
+    document.getElementById('close-qr-btn').addEventListener('click', closeQrModal);
+
+    function showQRModal(nombre, codigoAcceso) {
+      document.getElementById('qr-student-name').textContent = nombre;
+      const container = document.getElementById('qrcode-container');
+      container.innerHTML = ''; // clear previous
+      
+      qrcode = new QRCode(container, {
+        text: codigoAcceso,
+        width: 200,
+        height: 200,
+        colorDark : "#000000",
+        colorLight : "#ffffff",
+        correctLevel : QRCode.CorrectLevel.H
+      });
+      
+      qrModal.classList.remove('hidden');
+    }
+
+    document.getElementById('download-qr-btn').addEventListener('click', () => {
+      const canvas = document.querySelector('#qrcode-container canvas');
+      if (canvas) {
+        const url = canvas.toDataURL('image/png');
+        const a = document.createElement('a');
+        a.href = url;
+        const studentName = document.getElementById('qr-student-name').textContent;
+        a.download = `QR_${studentName.replace(/\\s+/g, '_')}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
       }
     });
   </script>

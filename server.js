@@ -11,20 +11,28 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Servir archivos estáticos (HTML, CSS, JS del frontend)
+app.use(express.static(path.join(__dirname)));
+
 // Directorio para temporal uploads
 if (!fs.existsSync("uploads")) {
   fs.mkdirSync("uploads");
 }
 const upload = multer({ dest: "uploads/" });
 
-// Configuración de la conexión PostgreSQL usando variables del archivo .env
-const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  password: process.env.DB_PASS,
-  port: process.env.DB_PORT,
-});
+// Configuración de la conexión PostgreSQL usando variables del archivo .env o Supabase
+const pool = process.env.DATABASE_URL 
+  ? new Pool({ 
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false } // Requerido por Supabase/Vercel
+    })
+  : new Pool({
+      user: process.env.DB_USER,
+      host: process.env.DB_HOST,
+      database: process.env.DB_NAME,
+      password: process.env.DB_PASS,
+      port: process.env.DB_PORT,
+    });
 
 pool.connect(async (err, client, release) => {
   if (err) {
@@ -412,6 +420,29 @@ app.post("/api/upload-alumnos", upload.single("archivo"), async (req, res) => {
   }
 });
 
+// POST /api/alumnos - Agregar un solo alumno
+app.post("/api/alumnos", async (req, res) => {
+  try {
+    const { nombre_completo, grado, grupo, matricula } = req.body;
+    if (!nombre_completo) return res.status(400).json({ error: "El nombre es requerido" });
+    
+    const crypto = require("crypto");
+    const codigoAcceso = crypto.randomUUID();
+    
+    const result = await pool.query(
+      "INSERT INTO alumnos (nombre_completo, grado, grupo, matricula, codigo_acceso) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+      [nombre_completo, grado || "", grupo || "", matricula || null, codigoAcceso]
+    );
+    res.json({ success: true, alumno: result.rows[0] });
+  } catch (error) {
+    if (error.code === '23505') {
+      res.status(400).json({ error: "Ya existe un alumno con esa matrícula." });
+    } else {
+      res.status(500).json({ error: error.message });
+    }
+  }
+});
+
 // GET /api/alumnos - Lista completa de alumnos
 app.get("/api/alumnos", async (req, res) => {
   try {
@@ -462,6 +493,51 @@ app.post("/api/asistencias", async (req, res) => {
   }
 });
 
+// POST /api/asistencias/qr - Registrar asistencia mediante código QR
+app.post("/api/asistencias/qr", async (req, res) => {
+  try {
+    const { codigo_acceso } = req.body;
+    if (!codigo_acceso) return res.status(400).json({ error: "Código QR no detectado" });
+    
+    const alResult = await pool.query("SELECT id, nombre_completo, grado, grupo FROM alumnos WHERE codigo_acceso = $1 LIMIT 1", [codigo_acceso]);
+    if (alResult.rows.length === 0) {
+      return res.status(404).json({ error: "Código QR inválido o alumno no encontrado" });
+    }
+    
+    const student = alResult.rows[0];
+    const today = new Date().toISOString().split('T')[0];
+    const now   = new Date().toTimeString().split(' ')[0]; // HH:MM:SS
+    
+    const hour = parseInt(now.split(':')[0]);
+    const minute = parseInt(now.split(':')[1]);
+    let status = "A tiempo";
+    if (hour > 7 || (hour === 7 && minute > 15)) {
+      status = "Retardo";
+    }
+
+    const existing = await pool.query(
+      "SELECT id FROM asistencias WHERE student_id = $1 AND date = $2",
+      [student.id, today]
+    );
+    
+    if (existing.rows.length > 0) {
+      await pool.query(
+        "UPDATE asistencias SET status = $1, entry_time = $2 WHERE student_id = $3 AND date = $4",
+        [status, now, student.id, today]
+      );
+    } else {
+      await pool.query(
+        "INSERT INTO asistencias (student_id, date, entry_time, status) VALUES ($1, $2, $3, $4)",
+        [student.id, today, now, status]
+      );
+    }
+    
+    res.json({ success: true, student, status, entry_time: now });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // GET /api/asistencias/hoy - Pase de lista del día (todos los alumnos + su estado hoy)
 app.get("/api/asistencias/hoy", async (req, res) => {
   try {
@@ -487,9 +563,13 @@ app.get("/api/asistencias/hoy", async (req, res) => {
 });
 
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, async () => {
-  console.log(`🚀 Servidor ejecutándose en http://localhost:${PORT}`);
-  
+// Iniciar servidor local o exportar para Vercel
+if (require.main === module) {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, async () => {
+    console.log(`🚀 Servidor ejecutándose en http://localhost:${PORT}`);
+  });
+}
 
-});
+// Requerido por Vercel para Serverless Functions
+module.exports = app;
