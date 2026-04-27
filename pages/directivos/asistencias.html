@@ -226,7 +226,9 @@
 
   <script src="../../assets/js/main.js"></script>
   <script type="module">
-    const API = 'http://localhost:3000/api';
+    const API = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+      ? 'http://localhost:3000/api'
+      : '/api';
 
     // Registrar asistencia individual en la BD
     async function registrarAsistencia(studentId, status, btn) {

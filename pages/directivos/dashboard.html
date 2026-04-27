@@ -279,10 +279,15 @@
 
   <script src="../../assets/js/main.js"></script>
   <script type="module">
+    // Detectar base URL igual que api-client.js
+    const API = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+      ? 'http://localhost:3000/api'
+      : '/api';
+
     // ── Fetch & populate the 3 KPI cards from real DB ──────────────────────
     async function loadDashboardStats() {
       try {
-        const res  = await fetch('http://localhost:3000/api/stats/reportes');
+        const res  = await fetch(`${API}/stats/reportes`);
         const data = await res.json();
 
         const asistEl = document.getElementById('dashboard-asistencia-val');
@@ -292,10 +297,10 @@
 
         if (asistEl) asistEl.textContent = (data.asistencia_promedio ?? '--') + '%';
         if (ausEl)   ausEl.textContent   = data.alumnos_riesgo ?? '--';
-        if (juEl)    juEl.textContent    = '0'; // no hay columna justificada aún
-        
+        if (juEl)    juEl.textContent    = '0';
+
         // Cargar total de reportes disciplinarios
-        const repRes  = await fetch('http://localhost:3000/api/reportes-disciplina');
+        const repRes  = await fetch(`${API}/reportes-disciplina`);
         const repData = await repRes.json();
         if (repEl) repEl.textContent = Array.isArray(repData) ? repData.length : '--';
       } catch(e) {
@@ -303,12 +308,50 @@
       }
     }
 
+    // ── Cargar tabla de alumnos ──────────────────────────────────────────────
+    async function loadStudentsTable() {
+      const tbody = document.getElementById('students-table-body');
+      if (!tbody) return;
+      try {
+        const res   = await fetch(`${API}/alumnos`);
+        const items = await res.json();
+        if (!Array.isArray(items) || items.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="4" class="text-center py-6 text-gray-400 font-medium">Sin alumnos registrados.</td></tr>`;
+          return;
+        }
+        tbody.innerHTML = items.map(a => `
+          <tr class="hover:bg-gray-50 transition-colors group">
+            <td class="px-6 py-3 font-semibold text-gray-800 group-hover:text-sepBurgundy transition-colors">${a.nombre_completo}</td>
+            <td class="px-6 py-3 text-gray-500">${a.grado || '—'}° ${a.grupo || ''}</td>
+            <td class="px-6 py-3 text-gray-400 font-mono text-xs">${a.matricula || '—'}</td>
+            <td class="px-6 py-3 text-center">
+              <button onclick="eliminarAlumno(${a.id}, this)" class="text-xs text-red-400 hover:text-red-600 font-bold uppercase tracking-wide hover:underline transition-colors">Eliminar</button>
+            </td>
+          </tr>`).join('');
+      } catch(e) {
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center py-6 text-red-400 font-bold">Error cargando alumnos.</td></tr>`;
+      }
+    }
+
+    // ── Eliminar alumno ──────────────────────────────────────────────────────
+    window.eliminarAlumno = async function(id, btn) {
+      if (!confirm('¿Eliminar este alumno permanentemente?')) return;
+      btn.textContent = '...';
+      try {
+        const res = await fetch(`${API}/alumnos/${id}`, { method: 'DELETE' });
+        if (res.ok) loadStudentsTable();
+        else btn.textContent = 'Error';
+      } catch(e) {
+        btn.textContent = 'Error';
+      }
+    };
+
     // ── Cargar lista disciplinaria en widget de Prefectura ──────────────────
     async function loadPrefectReports() {
       const container = document.getElementById('prefect-reports-container');
       if (!container) return;
       try {
-        const res   = await fetch('http://localhost:3000/api/reportes-disciplina');
+        const res   = await fetch(`${API}/reportes-disciplina`);
         const items = await res.json();
 
         if (!Array.isArray(items) || items.length === 0) {
@@ -318,16 +361,20 @@
 
         const colors = { 'Citatorio a Tutor': 'yellow', 'Indisciplina en Aula': 'red', 'Faltas y Retardos Reiterados': 'orange', 'Agresión o Problemas Conductuales': 'red' };
         container.innerHTML = items.slice(0, 5).map(r => {
+          const alumno = r.alumnos || {};
+          const nombre = alumno.nombre_completo || r.nombre_completo || 'Alumno';
+          const grado  = alumno.grado  || r.grado  || '?';
+          const grupo  = alumno.grupo  || r.grupo  || '';
           const c = colors[r.tipo] || 'gray';
-          const fecha = new Date(r.created_at).toLocaleDateString('es-MX', { day:'2-digit', month:'short' });
+          const fecha = r.created_at ? new Date(r.created_at).toLocaleDateString('es-MX', { day:'2-digit', month:'short' }) : '—';
           return `
           <div class="flex space-x-4 p-4 rounded-xl hover:bg-white hover:shadow-md border border-transparent hover:border-gray-100 transition-all duration-300 group">
             <div class="flex-shrink-0 w-12 h-12 bg-${c}-100 rounded-xl flex flex-col items-center justify-center text-${c}-500 shadow-sm">
               <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
             </div>
             <div class="flex-1 min-w-0">
-              <h4 class="font-bold text-gray-800 text-sm group-hover:text-sepBurgundy transition-colors truncate">${r.tipo} – ${r.grado || '?'}° ${r.grupo || ''}</h4>
-              <p class="text-xs text-gray-500 mt-1 leading-relaxed line-clamp-2">${r.nombre_completo}: ${r.descripcion || '—'}</p>
+              <h4 class="font-bold text-gray-800 text-sm group-hover:text-sepBurgundy transition-colors truncate">${r.tipo} – ${grado}° ${grupo}</h4>
+              <p class="text-xs text-gray-500 mt-1 leading-relaxed line-clamp-2">${nombre}: ${r.descripcion || '—'}</p>
               <p class="text-[10px] text-gray-400 mt-1.5 uppercase font-bold tracking-widest">${r.reporta_por || 'Staff'} · ${fecha}</p>
             </div>
           </div>`;
@@ -337,7 +384,42 @@
       }
     }
 
+    // ── Excel Upload ──────────────────────────────────────────────────────────
+    const fileInput  = document.getElementById('excel-file-input');
+    const uploadBtn  = document.getElementById('upload-excel-btn');
+    const statusMsg  = document.getElementById('upload-status-msg');
+
+    fileInput?.addEventListener('change', () => {
+      if (fileInput.files.length > 0) {
+        uploadBtn.classList.remove('hidden');
+        statusMsg.textContent = `Archivo: ${fileInput.files[0].name}`;
+        statusMsg.classList.remove('hidden');
+        statusMsg.className = statusMsg.className.replace('text-red-500','').replace('text-green-600','') + ' text-gray-500';
+      }
+    });
+
+    uploadBtn?.addEventListener('click', async () => {
+      if (!fileInput.files.length) return;
+      const formData = new FormData();
+      formData.append('archivo', fileInput.files[0]);
+      uploadBtn.textContent = 'Subiendo...';
+      uploadBtn.disabled = true;
+      try {
+        const res  = await fetch(`${API}/upload-alumnos`, { method: 'POST', body: formData });
+        const data = await res.json();
+        statusMsg.textContent = data.message || data.error || 'Proceso completado.';
+        statusMsg.className = statusMsg.className.replace('text-gray-500','') + (res.ok ? ' text-green-600' : ' text-red-500');
+        if (res.ok) { fileInput.value = ''; uploadBtn.classList.add('hidden'); loadStudentsTable(); }
+      } catch(e) {
+        statusMsg.textContent = 'Error al subir el archivo.';
+      } finally {
+        uploadBtn.textContent = 'Subir a BD';
+        uploadBtn.disabled = false;
+      }
+    });
+
     loadDashboardStats();
+    loadStudentsTable();
     loadPrefectReports();
   </script>
 </body>
