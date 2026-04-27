@@ -18,11 +18,18 @@ if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 const upload = multer({ dest: uploadDir });
 
 // Cliente Supabase
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_KEY) {
+  console.error("❌ ERROR: Faltan variables de entorno SUPABASE_URL o SUPABASE_KEY");
+}
+
 const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_KEY
+  SUPABASE_URL || 'https://placeholder.supabase.co',
+  SUPABASE_KEY || 'placeholder-key'
 );
-console.log("✅ Supabase client inicializado:", process.env.SUPABASE_URL);
+console.log("✅ Supabase client inicializado:", SUPABASE_URL);
 
 // ========================
 // ENDPOINTS
