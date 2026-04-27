@@ -1,7 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
-const { Pool } = require("pg");
+const { createClient } = require("@supabase/supabase-js");
 const multer = require("multer");
 const xlsx = require("xlsx");
 const fs = require("fs");
@@ -10,134 +10,43 @@ const path = require("path");
 const app = express();
 app.use(cors());
 app.use(express.json());
-
-// Servir archivos estáticos (HTML, CSS, JS del frontend)
 app.use(express.static(path.join(__dirname)));
 
-// Directorio para temporal uploads (En Vercel debe ser /tmp)
+// Directorio temporal para uploads (Vercel usa /tmp)
 const uploadDir = process.env.VERCEL ? "/tmp/uploads" : "uploads";
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 const upload = multer({ dest: uploadDir });
 
-// Configuración de la conexión PostgreSQL usando variables del archivo .env o Supabase
-const pool = process.env.DATABASE_URL 
-  ? new Pool({ 
-      connectionString: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: false } // Requerido por Supabase/Vercel
-    })
-  : new Pool({
-      user: process.env.DB_USER,
-      host: process.env.DB_HOST,
-      database: process.env.DB_NAME,
-      password: process.env.DB_PASS,
-      port: process.env.DB_PORT,
-    });
-
-pool.connect(async (err, client, release) => {
-  if (err) {
-    console.error("Error reconectando a PostgreSQL (pgAdmin):", err.stack);
-  } else {
-    console.log(`✅ Conectado exitosamente a la base de datos PostgreSQL: ${process.env.DB_NAME}`);
-    try {
-      // 1. Alumnos
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS alumnos (
-          id SERIAL PRIMARY KEY,
-          nombre_completo VARCHAR(255) NOT NULL,
-          matricula VARCHAR(18) UNIQUE, -- Equivalente a CURP o Matrícula
-          codigo_acceso VARCHAR(255),
-          grado VARCHAR(50),
-          grupo VARCHAR(50)
-        )
-      `);
-      // 2. Staff (Directores, Prefectos, Tutores)
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS staff (
-          id SERIAL PRIMARY KEY,
-          email VARCHAR(255) UNIQUE NOT NULL,
-          password VARCHAR(255) NOT NULL,
-          nombre VARCHAR(255),
-          rol VARCHAR(50),
-          tipo_personal VARCHAR(50)
-        )
-      `);
-      // 3. Asistencias
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS asistencias (
-          id SERIAL PRIMARY KEY,
-          student_id INTEGER REFERENCES alumnos(id),
-          date DATE,
-          entry_time TIME,
-          status VARCHAR(50)
-        )
-      `);
-      // 4. Anuncios
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS anuncios (
-          id SERIAL PRIMARY KEY,
-          title VARCHAR(255),
-          content TEXT,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
-      await client.query(`
-      CREATE TABLE IF NOT EXISTS reportes_disciplinarios (
-        id SERIAL PRIMARY KEY,
-        student_id INTEGER REFERENCES alumnos(id) ON DELETE CASCADE,
-        tipo VARCHAR(100) NOT NULL,
-        descripcion TEXT,
-        reporta_por VARCHAR(100),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-      // 5. Insertar staff inicial de prueba si no existe
-      await client.query(`
-        INSERT INTO staff (email, password, nombre, rol, tipo_personal) VALUES 
-        ('director', 'director', 'Director Prueba', 'director', 'director'),
-        ('prefecto', 'prefecto', 'Prefecto Prueba', 'prefecto', 'prefecto'),
-        ('tutor', 'tutor', 'Tutor Prueba', 'tutor', 'tutor')
-        ON CONFLICT (email) DO NOTHING;
-      `);
-      // 6. Insertar anuncio base si no hay
-      await client.query(`
-        INSERT INTO anuncios (title, content) 
-        SELECT 'Bienvenido a la nueva plataforma', 'Hemos migrado exitosamente a PostgreSQL local.' 
-        WHERE NOT EXISTS (SELECT 1 FROM anuncios LIMIT 1);
-      `);
-
-      console.log("✅ Tablas de DB aseguradas: alumnos, staff, asistencias, anuncios.");
-    } catch (e) {
-      console.error("Error inicializando tablas:", e);
-    } finally {
-      release();
-    }
-  }
-});
+// Cliente Supabase
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_KEY
+);
+console.log("✅ Supabase client inicializado:", process.env.SUPABASE_URL);
 
 // ========================
 // ENDPOINTS
 // ========================
 
-// Endpoint de prueba para comprobar que el backend funciona
+// Health check
 app.get("/api/health", (req, res) => {
-  res.json({ status: "ok", message: "Servidor conectado a PostgreSQL exitosamente." });
+  res.json({ status: "ok", message: "Servidor conectado a Supabase." });
 });
 
 // 1. LOGIN STAFF
 app.post("/api/login/staff", async (req, res) => {
   try {
     const { email, password } = req.body;
-    const result = await pool.query(
-      "SELECT id, nombre, rol, tipo_personal FROM staff WHERE email = $1 AND password = $2",
-      [email.toLowerCase(), password]
-    );
-    if (result.rows.length > 0) {
-      res.json({ success: true, user: result.rows[0] });
-    } else {
-      res.status(401).json({ success: false, message: "Credenciales inválidas" });
-    }
+    const { data, error } = await supabase
+      .from("staff")
+      .select("id, nombre, rol, tipo_personal")
+      .eq("email", email.toLowerCase())
+      .eq("password", password)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) return res.status(401).json({ success: false, message: "Credenciales inválidas" });
+    res.json({ success: true, user: data });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -146,94 +55,94 @@ app.post("/api/login/staff", async (req, res) => {
 // 2. LOGIN ALUMNO
 app.post("/api/login/student", async (req, res) => {
   try {
-    const { matricula, codigoAcceso } = req.body;
-    // Búsqueda estricta por nombre o matrícula en PostgreSQL
-    const result = await pool.query(
-      "SELECT id, nombre_completo as nombre, grado, grupo FROM alumnos WHERE matricula = $1 OR nombre_completo ILIKE $2 LIMIT 1",
-      [matricula, `%${matricula}%`]
-    );
-    
-    if (result.rows.length > 0) {
-      const dbAlum = result.rows[0];
-      res.json({ success: true, user: {
-        id: dbAlum.id,
-        matricula: matricula,
-        nombre: dbAlum.nombre,
-        apellidos: '',
-        grupos: { grado: dbAlum.grado || "0", grupo: dbAlum.grupo || "0" }
-      }});
-    } else {
-      res.status(401).json({ success: false, message: "Nombre o Matrícula incorrectos. El estudiante no existe en la base de datos." });
-    }
+    const { matricula } = req.body;
+    const { data, error } = await supabase
+      .from("alumnos")
+      .select("id, nombre_completo, grado, grupo")
+      .or(`matricula.eq.${matricula},nombre_completo.ilike.%${matricula}%`)
+      .limit(1)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) return res.status(401).json({ success: false, message: "Alumno no encontrado." });
+
+    res.json({
+      success: true,
+      user: {
+        id: data.id,
+        matricula,
+        nombre: data.nombre_completo,
+        apellidos: "",
+        grupos: { grado: data.grado || "0", grupo: data.grupo || "0" }
+      }
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// 3. OBTENER AVISOS
+// 3. ANUNCIOS
 app.get("/api/anuncios", async (req, res) => {
   try {
-    const result = await pool.query("SELECT * FROM anuncios ORDER BY created_at DESC LIMIT 10");
-    res.json(result.rows); // Puede regresar un arreglo vacío si la DB no tiene anuncios.
+    const { data, error } = await supabase
+      .from("anuncios")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(10);
+    if (error) throw error;
+    res.json(data || []);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// 3.1 CREAR AVISO
 app.post("/api/anuncios", async (req, res) => {
   try {
     const { title, content } = req.body;
     if (!title) return res.status(400).json({ error: "Título requerido" });
-    const result = await pool.query(
-      "INSERT INTO anuncios (title, content) VALUES ($1, $2) RETURNING *",
-      [title, content || ""]
-    );
-    res.json({ success: true, anuncio: result.rows[0] });
+    const { data, error } = await supabase
+      .from("anuncios")
+      .insert({ title, content: content || "" })
+      .select()
+      .single();
+    if (error) throw error;
+    res.json({ success: true, anuncio: data });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// 3.2 ELIMINAR AVISO
 app.delete("/api/anuncios/:id", async (req, res) => {
   try {
-    const { id } = req.params;
-    await pool.query("DELETE FROM anuncios WHERE id = $1", [id]);
+    const { error } = await supabase.from("anuncios").delete().eq("id", req.params.id);
+    if (error) throw error;
     res.json({ success: true });
-  } catch(error) {
+  } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// 4. RESUMEN ESTUDIANTE 100% REAL DE DB
+// 4. RESUMEN ALUMNO
 app.get("/api/alumnos/:id/resumen", async (req, res) => {
   try {
     const studentId = Number(req.params.id) || 0;
-    const result = await pool.query(
-      "SELECT grado || '° ' || grupo as group_name, 'Turno Matutino' as shift_name FROM alumnos WHERE id = $1",
-      [studentId]
-    );
+    const { data: alumno, error: aErr } = await supabase
+      .from("alumnos")
+      .select("grado, grupo")
+      .eq("id", studentId)
+      .maybeSingle();
+    if (aErr) throw aErr;
+    if (!alumno) return res.status(404).json({ error: "Alumno no encontrado" });
 
-    if (result.rows.length === 0) {
-       return res.status(404).json({ error: "Alumno no encontrado" });
-    }
+    const { data: asistencias, error: asErr } = await supabase
+      .from("asistencias")
+      .select("status")
+      .eq("student_id", studentId);
+    if (asErr) throw asErr;
 
-    const absQuery = await pool.query(
-      "SELECT status, count(*) FROM asistencias WHERE student_id = $1 GROUP BY status",
-      [studentId]
-    );
-
-    let total = 0;
-    let onTime = 0;
-    let faltas = 0;
-    absQuery.rows.forEach(r => {
-       const conteo = parseInt(r.count);
-       total += conteo;
-       if (r.status === 'A tiempo') onTime += conteo;
-       if (r.status === 'Falta') faltas += conteo;
-    });
-
+    const total = asistencias?.length || 0;
+    const onTime = asistencias?.filter(r => r.status === "A tiempo").length || 0;
+    const faltas = asistencias?.filter(r => r.status === "Falta").length || 0;
     const percent = total > 0 ? Math.round((onTime / total) * 100) : 100;
 
     res.json({
@@ -241,12 +150,85 @@ app.get("/api/alumnos/:id/resumen", async (req, res) => {
       attendance_status: percent > 85 ? "Excelente" : "Requiere Atención",
       unjustified_absences: faltas,
       absences_period: "Este mes",
-      group_name: result.rows[0].group_name,
-      shift_name: result.rows[0].shift_name,
+      group_name: `${alumno.grado}° ${alumno.grupo}`,
+      shift_name: "Turno Matutino",
       grade_level: "Secundaria"
     });
-  } catch(error) {
-     res.status(500).json({ error: error.message });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 5. ASISTENCIAS ALUMNO
+app.get("/api/alumnos/:id/asistencias", async (req, res) => {
+  try {
+    const studentId = Number(req.params.id) || 0;
+    const { data, error } = await supabase
+      .from("asistencias")
+      .select("date, entry_time, status")
+      .eq("student_id", studentId)
+      .order("date", { ascending: false })
+      .limit(5);
+    if (error) throw error;
+    res.json(data || []);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 6. BÚSQUEDA ALUMNOS
+app.get("/api/search/alumnos", async (req, res) => {
+  try {
+    const { q, grado, grupo } = req.query;
+    if (!q && !grado && !grupo) return res.json([]);
+
+    let query = supabase
+      .from("alumnos")
+      .select("id, nombre_completo, grado, grupo, matricula")
+      .order("nombre_completo")
+      .limit(100);
+
+    if (q) query = query.or(`nombre_completo.ilike.%${q}%,matricula.ilike.%${q}%`);
+    if (grado) query = query.ilike("grado", `%${grado}%`);
+    if (grupo) query = query.ilike("grupo", grupo);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    res.json(data || []);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 7. ESTADÍSTICAS GLOBALES
+app.get("/api/stats/reportes", async (req, res) => {
+  try {
+    const { grado } = req.query;
+
+    let alumnosQuery = supabase.from("alumnos").select("*", { count: "exact", head: true });
+    if (grado && grado !== "Todos los Grados") alumnosQuery = alumnosQuery.ilike("grado", `${grado[0]}°%`);
+    const { count: totalAlumnos } = await alumnosQuery;
+
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const { data: absData } = await supabase
+      .from("asistencias")
+      .select("status")
+      .gte("date", thirtyDaysAgo.toISOString().split("T")[0]);
+
+    const totalEntries = absData?.length || 0;
+    const onTimeCount = absData?.filter(r => r.status === "A tiempo" || r.status === "Retardo").length || 0;
+    const absentCount = absData?.filter(r => r.status === "Falta").length || 0;
+    const attPercent = totalEntries > 0 ? Math.round((onTimeCount / totalEntries) * 100) : 100;
+
+    res.json({
+      total_alumnos: totalAlumnos || 0,
+      asistencia_promedio: attPercent,
+      alumnos_riesgo: absentCount,
+      porcentaje_riesgo: totalEntries > 0 ? Math.round((absentCount / totalEntries) * 100) : 0
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -254,25 +236,14 @@ app.get("/api/alumnos/:id/resumen", async (req, res) => {
 app.get("/api/reportes-disciplina", async (req, res) => {
   try {
     const { student_id } = req.query;
-    let sql = `
-      SELECT r.*, a.nombre_completo, a.grado, a.grupo 
-      FROM reportes_disciplinarios r 
-      JOIN alumnos a ON r.student_id = a.id 
-      ORDER BY r.created_at DESC
-    `;
-    let args = [];
-    if(student_id) {
-        sql = `
-          SELECT r.*, a.nombre_completo, a.grado, a.grupo 
-          FROM reportes_disciplinarios r 
-          JOIN alumnos a ON r.student_id = a.id 
-          WHERE r.student_id = $1
-          ORDER BY r.created_at DESC
-        `;
-        args = [student_id];
-    }
-    const result = await pool.query(sql, args);
-    res.json(result.rows);
+    let query = supabase
+      .from("reportes_disciplinarios")
+      .select("*, alumnos(nombre_completo, grado, grupo)")
+      .order("created_at", { ascending: false });
+    if (student_id) query = query.eq("student_id", student_id);
+    const { data, error } = await query;
+    if (error) throw error;
+    res.json(data || []);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -282,211 +253,114 @@ app.post("/api/reportes-disciplina", async (req, res) => {
   try {
     const { student_id, tipo, descripcion, reporta_por } = req.body;
     if (!student_id || !tipo) return res.status(400).json({ error: "Estudiante y tipo requeridos" });
-    
-    const result = await pool.query(
-      "INSERT INTO reportes_disciplinarios (student_id, tipo, descripcion, reporta_por) VALUES ($1, $2, $3, $4) RETURNING *",
-      [student_id, tipo, descripcion || "", reporta_por || "Staff"]
-    );
-    res.json({ success: true, reporte: result.rows[0] });
-  } catch(error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// 5. ASISTENCIAS ESTUDIANTE (ESTRICTO DB)
-app.get("/api/alumnos/:id/asistencias", async (req, res) => {
-  try {
-    const studentId = Number(req.params.id) || 0;
-    const result = await pool.query(
-      "SELECT date, entry_time, status FROM asistencias WHERE student_id = $1 ORDER BY date DESC LIMIT 5",
-      [studentId]
-    );
-    res.json(result.rows); // Retorna vacio estricto si no hay asistencias reales
+    const { data, error } = await supabase
+      .from("reportes_disciplinarios")
+      .insert({ student_id, tipo, descripcion: descripcion || "", reporta_por: reporta_por || "Staff" })
+      .select()
+      .single();
+    if (error) throw error;
+    res.json({ success: true, reporte: data });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// 6. BUSQUEDA AVANZADA ALUMNOS
-app.get("/api/search/alumnos", async (req, res) => {
+// 9. ALUMNOS CRUD
+app.get("/api/alumnos", async (req, res) => {
   try {
-    const { q, grado, grupo } = req.query;
-    let queryArgs = [];
-    let queryConditions = [];
-
-    if (q) {
-      queryArgs.push(`%${q}%`);
-      queryConditions.push(`(nombre_completo ILIKE $${queryArgs.length} OR matricula ILIKE $${queryArgs.length})`);
-    }
-    if (grado) {
-      queryArgs.push(`${grado}%`); // e.g. "1°"
-      queryConditions.push(`grado ILIKE $${queryArgs.length}`);
-    }
-    if (grupo) {
-      queryArgs.push(grupo);
-      queryConditions.push(`grupo ILIKE $${queryArgs.length}`);
-    }
-
-    let whereClause = queryConditions.length > 0 ? "WHERE " + queryConditions.join(" AND ") : "";
-    // Aseguramos que empieze limpio limitando resultados a menos que haya condicion específica
-    if(queryConditions.length === 0) return res.json([]); 
-
-    const sqlStr = `SELECT id, nombre_completo, grado, grupo, matricula FROM alumnos ${whereClause} ORDER BY nombre_completo ASC LIMIT 100`;
-    const result = await pool.query(sqlStr, queryArgs);
-    res.json(result.rows);
+    const { data, error } = await supabase
+      .from("alumnos")
+      .select("id, nombre_completo, grado, grupo, matricula")
+      .order("nombre_completo");
+    if (error) throw error;
+    res.json(data || []);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// 7. REPORTES / ESTADÍSTICAS GLOBALES O POR GRADO
-app.get("/api/stats/reportes", async (req, res) => {
+app.post("/api/alumnos", async (req, res) => {
   try {
-    const { grado } = req.query;
-    
-    // Obtener total alumnos
-    let totalQuery = "SELECT count(id) as total FROM alumnos";
-    let totalArgs = [];
-    if (grado && grado !== "Todos los Grados") {
-       totalArgs.push(`${grado.split("")[0]}°%`);
-       totalQuery += " WHERE grado ILIKE $1";
+    const { nombre_completo, grado, grupo, matricula } = req.body;
+    if (!nombre_completo) return res.status(400).json({ error: "El nombre es requerido" });
+    const { data, error } = await supabase
+      .from("alumnos")
+      .insert({
+        nombre_completo,
+        grado: grado || "",
+        grupo: grupo || "",
+        matricula: matricula || null,
+        codigo_acceso: require("crypto").randomUUID()
+      })
+      .select()
+      .single();
+    if (error) {
+      if (error.code === "23505") return res.status(400).json({ error: "Ya existe un alumno con esa matrícula." });
+      throw error;
     }
-    const totalRes = await pool.query(totalQuery, totalArgs);
-    const totalAlumnos = parseInt(totalRes.rows[0].total) || 0;
-
-    // Obtener desglose status asistencias hoy
-    const today = new Date().toISOString().split('T')[0];
-    let absStr = "SELECT status, count(*) FROM asistencias a JOIN alumnos al ON a.student_id = al.id WHERE a.date >= CURRENT_DATE - INTERVAL '30 days'";
-    let absArgs = [];
-    if (grado && grado !== "Todos los Grados") {
-       absArgs.push(`${grado.split("")[0]}°%`);
-       absStr += " AND al.grado ILIKE $1";
-    }
-    absStr += " GROUP BY status";
-
-    const absRes = await pool.query(absStr, absArgs);
-    let onTimeCount = 0;
-    let absentCount = 0;
-    let totalEntries = 0;
-
-    absRes.rows.forEach(r => {
-        let n = parseInt(r.count);
-        totalEntries += n;
-        if(r.status === 'A tiempo' || r.status === 'Retardo') onTimeCount += n;
-        if(r.status === 'Falta') absentCount += n;
-    });
-
-    const attPercent = totalEntries > 0 ? Math.round((onTimeCount / totalEntries) * 100) : 100;
-    const diff = 100 - attPercent;
-
-    res.json({
-        total_alumnos: totalAlumnos,
-        asistencia_promedio: attPercent,
-        alumnos_riesgo: totalEntries > 0 ? absentCount : 0,
-        porcentaje_riesgo: totalEntries > 0 ? Math.round((absentCount / totalEntries) * 100) : 0,
-    });
-  } catch(error) {
+    res.json({ success: true, alumno: data });
+  } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// Endpoint para importar excel de estudiantes
+app.delete("/api/alumnos/:id", async (req, res) => {
+  try {
+    const { error } = await supabase.from("alumnos").delete().eq("id", req.params.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 10. UPLOAD EXCEL
 app.post("/api/upload-alumnos", upload.single("archivo"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "No se subió ningún archivo." });
-
   try {
-    const workbook = xlsx.read(req.file.buffer, { type: "buffer" });
-    const sheetName = workbook.SheetNames[0];
-    const data = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName]);
-
+    const workbook = xlsx.read(fs.readFileSync(req.file.path), { type: "buffer" });
+    const data = xlsx.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
     let insertCounts = 0;
     for (const row of data) {
       const nombre = row["Nombre Completo"] || row["nombre"] || row["Estudiante"] || "";
       const grado = row["Grado"] || row["grado"] || "";
       const grupo = row["Grupo"] || row["grupo"] || "";
       const matricula = row["Matricula"] || row["Curp"] || null;
-      const codigoAcceso = row["Codigo"] || row["Nip"] || null;
-
+      const codigo_acceso = row["Codigo"] || row["Nip"] || require("crypto").randomUUID();
       if (nombre) {
-        await pool.query(
-          "INSERT INTO alumnos (nombre_completo, grado, grupo, matricula, codigo_acceso) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (matricula) DO NOTHING",
-          [nombre, grado, grupo, matricula, codigoAcceso]
+        await supabase.from("alumnos").upsert(
+          { nombre_completo: nombre, grado, grupo, matricula, codigo_acceso },
+          { onConflict: "matricula" }
         );
         insertCounts++;
       }
     }
-    res.json({ success: true, message: `Se insertaron/verificaron ${insertCounts} alumnos desde el Excel exitosamente.` });
+    res.json({ success: true, message: `Se procesaron ${insertCounts} alumnos del Excel.` });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// POST /api/alumnos - Agregar un solo alumno
-app.post("/api/alumnos", async (req, res) => {
-  try {
-    const { nombre_completo, grado, grupo, matricula } = req.body;
-    if (!nombre_completo) return res.status(400).json({ error: "El nombre es requerido" });
-    
-    const crypto = require("crypto");
-    const codigoAcceso = crypto.randomUUID();
-    
-    const result = await pool.query(
-      "INSERT INTO alumnos (nombre_completo, grado, grupo, matricula, codigo_acceso) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-      [nombre_completo, grado || "", grupo || "", matricula || null, codigoAcceso]
-    );
-    res.json({ success: true, alumno: result.rows[0] });
-  } catch (error) {
-    if (error.code === '23505') {
-      res.status(400).json({ error: "Ya existe un alumno con esa matrícula." });
-    } else {
-      res.status(500).json({ error: error.message });
-    }
-  }
-});
-
-// GET /api/alumnos - Lista completa de alumnos
-app.get("/api/alumnos", async (req, res) => {
-  try {
-    const result = await pool.query("SELECT id, nombre_completo, grado, grupo, matricula FROM alumnos ORDER BY nombre_completo ASC");
-    res.json(result.rows);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// DELETE /api/alumnos/:id - Eliminar alumno
-app.delete("/api/alumnos/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    await pool.query("DELETE FROM alumnos WHERE id = $1", [id]);
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// POST /api/asistencias - Registrar asistencia de un alumno
+// 11. ASISTENCIAS
 app.post("/api/asistencias", async (req, res) => {
   try {
     const { student_id, status } = req.body;
     if (!student_id || !status) return res.status(400).json({ error: "student_id y status requeridos" });
-    const today = new Date().toISOString().split('T')[0];
-    const now   = new Date().toTimeString().split(' ')[0]; // HH:MM:SS
-    // Upsert: si ya existe asistencia hoy, actualiza; si no, inserta
-    const existing = await pool.query(
-      "SELECT id FROM asistencias WHERE student_id = $1 AND date = $2",
-      [student_id, today]
-    );
-    if (existing.rows.length > 0) {
-      await pool.query(
-        "UPDATE asistencias SET status = $1, entry_time = $2 WHERE student_id = $3 AND date = $4",
-        [status, now, student_id, today]
-      );
+    const today = new Date().toISOString().split("T")[0];
+    const now = new Date().toTimeString().split(" ")[0];
+
+    const { data: existing } = await supabase
+      .from("asistencias")
+      .select("id")
+      .eq("student_id", student_id)
+      .eq("date", today)
+      .maybeSingle();
+
+    if (existing) {
+      await supabase.from("asistencias").update({ status, entry_time: now })
+        .eq("student_id", student_id).eq("date", today);
     } else {
-      await pool.query(
-        "INSERT INTO asistencias (student_id, date, entry_time, status) VALUES ($1, $2, $3, $4)",
-        [student_id, today, now, status]
-      );
+      await supabase.from("asistencias").insert({ student_id, date: today, entry_time: now, status });
     }
     res.json({ success: true });
   } catch (error) {
@@ -494,83 +368,81 @@ app.post("/api/asistencias", async (req, res) => {
   }
 });
 
-// POST /api/asistencias/qr - Registrar asistencia mediante código QR
 app.post("/api/asistencias/qr", async (req, res) => {
   try {
     const { codigo_acceso } = req.body;
     if (!codigo_acceso) return res.status(400).json({ error: "Código QR no detectado" });
-    
-    const alResult = await pool.query("SELECT id, nombre_completo, grado, grupo FROM alumnos WHERE codigo_acceso = $1 LIMIT 1", [codigo_acceso]);
-    if (alResult.rows.length === 0) {
-      return res.status(404).json({ error: "Código QR inválido o alumno no encontrado" });
-    }
-    
-    const student = alResult.rows[0];
-    const today = new Date().toISOString().split('T')[0];
-    const now   = new Date().toTimeString().split(' ')[0]; // HH:MM:SS
-    
-    const hour = parseInt(now.split(':')[0]);
-    const minute = parseInt(now.split(':')[1]);
-    let status = "A tiempo";
-    if (hour > 7 || (hour === 7 && minute > 15)) {
-      status = "Retardo";
+
+    const { data: student, error: sErr } = await supabase
+      .from("alumnos")
+      .select("id, nombre_completo, grado, grupo")
+      .eq("codigo_acceso", codigo_acceso)
+      .maybeSingle();
+    if (sErr || !student) return res.status(404).json({ error: "Código QR inválido" });
+
+    const today = new Date().toISOString().split("T")[0];
+    const now = new Date().toTimeString().split(" ")[0];
+    const hour = parseInt(now.split(":")[0]);
+    const minute = parseInt(now.split(":")[1]);
+    const status = hour > 7 || (hour === 7 && minute > 15) ? "Retardo" : "A tiempo";
+
+    const { data: existing } = await supabase
+      .from("asistencias").select("id")
+      .eq("student_id", student.id).eq("date", today).maybeSingle();
+
+    if (existing) {
+      await supabase.from("asistencias").update({ status, entry_time: now })
+        .eq("student_id", student.id).eq("date", today);
+    } else {
+      await supabase.from("asistencias").insert({ student_id: student.id, date: today, entry_time: now, status });
     }
 
-    const existing = await pool.query(
-      "SELECT id FROM asistencias WHERE student_id = $1 AND date = $2",
-      [student.id, today]
-    );
-    
-    if (existing.rows.length > 0) {
-      await pool.query(
-        "UPDATE asistencias SET status = $1, entry_time = $2 WHERE student_id = $3 AND date = $4",
-        [status, now, student.id, today]
-      );
-    } else {
-      await pool.query(
-        "INSERT INTO asistencias (student_id, date, entry_time, status) VALUES ($1, $2, $3, $4)",
-        [student.id, today, now, status]
-      );
-    }
-    
     res.json({ success: true, student, status, entry_time: now });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// GET /api/asistencias/hoy - Pase de lista del día (todos los alumnos + su estado hoy)
 app.get("/api/asistencias/hoy", async (req, res) => {
   try {
     const { grado, grupo } = req.query;
-    let conditions = [];
-    let args = [];
-    if (grado) { args.push(`%${grado}%`); conditions.push(`a.grado ILIKE $${args.length}`); }
-    if (grupo) { args.push(grupo);        conditions.push(`a.grupo = $${args.length}`); }
-    const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
-    const sql = `
-      SELECT a.id, a.nombre_completo, a.grado, a.grupo, a.matricula,
-             asi.status as asistencia_hoy, asi.entry_time
-      FROM alumnos a
-      LEFT JOIN asistencias asi ON asi.student_id = a.id AND asi.date = CURRENT_DATE
-      ${where}
-      ORDER BY a.nombre_completo ASC
-    `;
-    const result = await pool.query(sql, args);
-    res.json(result.rows);
+    let query = supabase
+      .from("alumnos")
+      .select(`id, nombre_completo, grado, grupo, matricula, asistencias!left(status, entry_time, date)`)
+      .order("nombre_completo");
+
+    if (grado) query = query.ilike("grado", `%${grado}%`);
+    if (grupo) query = query.eq("grupo", grupo);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const today = new Date().toISOString().split("T")[0];
+    const result = (data || []).map(a => {
+      const asistenciaHoy = a.asistencias?.find(x => x.date === today);
+      return {
+        id: a.id,
+        nombre_completo: a.nombre_completo,
+        grado: a.grado,
+        grupo: a.grupo,
+        matricula: a.matricula,
+        asistencia_hoy: asistenciaHoy?.status || null,
+        entry_time: asistenciaHoy?.entry_time || null
+      };
+    });
+
+    res.json(result);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-
 // Iniciar servidor local o exportar para Vercel
 if (require.main === module) {
   const PORT = process.env.PORT || 3000;
-  app.listen(PORT, async () => {
+  app.listen(PORT, () => {
     console.log(`🚀 Servidor ejecutándose en http://localhost:${PORT}`);
   });
 }
 
-// Requerido por Vercel para Serverless Functions
 module.exports = app;
