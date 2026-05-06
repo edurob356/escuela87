@@ -1,6 +1,6 @@
 /**
- * NUEVO CLIENTE API - CONEXIÓN POSTGRESQL LOCAL
- * Este archivo reemplaza a supabase-client.js
+ * CLIENTE API - CONEXIÓN CON SUPABASE (via server.js)
+ * Todas las peticiones van al backend Express que usa @supabase/supabase-js.
  */
 const API_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
   ? 'http://localhost:3000/api'
