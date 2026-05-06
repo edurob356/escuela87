@@ -260,7 +260,7 @@
 
   <script src="../../assets/js/main.js"></script>
   <script type="module">
-    import { searchStudents } from '../../assets/js/api-client.js';
+    import { searchStudents, createReporteDisciplina, supabase } from '../../assets/js/api-client.js';
 
     const container = document.getElementById('search-results-container');
     const searchInput = document.querySelector('input[placeholder*="Ingresa nombre"]');
@@ -341,7 +341,6 @@
       saveBtn.disabled = true;
 
       try {
-        const { createReporteDisciplina } = await import('../../assets/js/api-client.js');
         const result = await createReporteDisciplina(studentId, tipo, desc, autor);
         if (result && result.success) {
           alert('¡Reporte generado y archivado en la base de datos exitosamente!');
@@ -387,22 +386,28 @@
       btn.disabled = true;
 
       try {
-        const res = await fetch('/api/alumnos', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ nombre_completo: nombre, matricula, grado, grupo })
-        });
-        const data = await res.json();
+        const codigo_acceso = crypto.randomUUID();
+        const { data, error } = await supabase.from('alumnos').insert({
+          nombre_completo: nombre,
+          matricula: matricula || null,
+          grado: grado || '',
+          grupo: grupo || '',
+          codigo_acceso: codigo_acceso
+        }).select().single();
         
-        if (data.success) {
+        if (error) throw error;
+        
+        if (data) {
           closeNewStudentModal();
-          showQRModal(data.alumno.nombre_completo, data.alumno.codigo_acceso);
+          showQRModal(data.nombre_completo, data.codigo_acceso);
           if(searchInput.value) renderResults(searchInput.value, ''); // refresh if searching
-        } else {
-          alert('Error: ' + data.error);
         }
       } catch (err) {
-        alert('Error de conexión: ' + err.message);
+        if(err.code === "23505") {
+            alert("Error: Ya existe un alumno con esa matrícula.");
+        } else {
+            alert('Error de conexión: ' + err.message);
+        }
       } finally {
         btn.innerHTML = 'Guardar y Generar QR';
         btn.disabled = false;

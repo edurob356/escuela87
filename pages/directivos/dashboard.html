@@ -278,17 +278,16 @@
   </div>
 
   <script src="../../assets/js/main.js"></script>
+  <!-- Cargar SheetJS desde CDN para parsear Excel en el cliente -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script type="module">
-    // Detectar base URL igual que api-client.js
-    const API = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-      ? 'http://localhost:3000/api'
-      : '/api';
+    import { getStats, getAlumnos, deleteAlumno, getReportesDisciplina, uploadAlumnosFromData } from '../../assets/js/api-client.js';
 
-    // ── Fetch & populate the 3 KPI cards from real DB ──────────────────────
+    // ── Fetch & populate the KPI cards ───────────────────────────────────────
     async function loadDashboardStats() {
       try {
-        const res  = await fetch(`${API}/stats/reportes`);
-        const data = await res.json();
+        const data = await getStats();
+        if (!data) return;
 
         const asistEl = document.getElementById('dashboard-asistencia-val');
         const ausEl   = document.getElementById('dashboard-ausentes-val');
@@ -300,11 +299,10 @@
         if (juEl)    juEl.textContent    = '0';
 
         // Cargar total de reportes disciplinarios
-        const repRes  = await fetch(`${API}/reportes-disciplina`);
-        const repData = await repRes.json();
+        const repData = await getReportesDisciplina();
         if (repEl) repEl.textContent = Array.isArray(repData) ? repData.length : '--';
       } catch(e) {
-        console.warn('No se pudo conectar con el servidor para estadísticas:', e.message);
+        console.warn('Error cargando estadísticas:', e);
       }
     }
 
@@ -313,8 +311,7 @@
       const tbody = document.getElementById('students-table-body');
       if (!tbody) return;
       try {
-        const res   = await fetch(`${API}/alumnos`);
-        const items = await res.json();
+        const items = await getAlumnos();
         if (!Array.isArray(items) || items.length === 0) {
           tbody.innerHTML = `<tr><td colspan="4" class="text-center py-6 text-gray-400 font-medium">Sin alumnos registrados.</td></tr>`;
           return;
@@ -325,7 +322,7 @@
             <td class="px-6 py-3 text-gray-500">${a.grado || '—'}° ${a.grupo || ''}</td>
             <td class="px-6 py-3 text-gray-400 font-mono text-xs">${a.matricula || '—'}</td>
             <td class="px-6 py-3 text-center">
-              <button onclick="eliminarAlumno(${a.id}, this)" class="text-xs text-red-400 hover:text-red-600 font-bold uppercase tracking-wide hover:underline transition-colors">Eliminar</button>
+              <button onclick="eliminarAlumnoUi('${a.id}', this)" class="text-xs text-red-400 hover:text-red-600 font-bold uppercase tracking-wide hover:underline transition-colors">Eliminar</button>
             </td>
           </tr>`).join('');
       } catch(e) {
@@ -334,25 +331,20 @@
     }
 
     // ── Eliminar alumno ──────────────────────────────────────────────────────
-    window.eliminarAlumno = async function(id, btn) {
+    window.eliminarAlumnoUi = async function(id, btn) {
       if (!confirm('¿Eliminar este alumno permanentemente?')) return;
       btn.textContent = '...';
-      try {
-        const res = await fetch(`${API}/alumnos/${id}`, { method: 'DELETE' });
-        if (res.ok) loadStudentsTable();
-        else btn.textContent = 'Error';
-      } catch(e) {
-        btn.textContent = 'Error';
-      }
+      const success = await deleteAlumno(id);
+      if (success) loadStudentsTable();
+      else btn.textContent = 'Error';
     };
 
-    // ── Cargar lista disciplinaria en widget de Prefectura ──────────────────
+    // ── Cargar lista disciplinaria ───────────────────────────────────────────
     async function loadPrefectReports() {
       const container = document.getElementById('prefect-reports-container');
       if (!container) return;
       try {
-        const res   = await fetch(`${API}/reportes-disciplina`);
-        const items = await res.json();
+        const items = await getReportesDisciplina();
 
         if (!Array.isArray(items) || items.length === 0) {
           container.innerHTML = `<div class="text-center text-gray-400 font-bold py-10 opacity-60">Sin reportes disciplinarios registrados.</div>`;
@@ -384,7 +376,7 @@
       }
     }
 
-    // ── Excel Upload ──────────────────────────────────────────────────────────
+    // ── Excel Upload (Parse en Cliente) ──────────────────────────────────────
     const fileInput  = document.getElementById('excel-file-input');
     const uploadBtn  = document.getElementById('upload-excel-btn');
     const statusMsg  = document.getElementById('upload-status-msg');
@@ -400,24 +392,43 @@
 
     uploadBtn?.addEventListener('click', async () => {
       if (!fileInput.files.length) return;
-      const formData = new FormData();
-      formData.append('archivo', fileInput.files[0]);
+      const file = fileInput.files[0];
+      
       uploadBtn.textContent = 'Subiendo...';
       uploadBtn.disabled = true;
+
       try {
-        const res  = await fetch(`${API}/upload-alumnos`, { method: 'POST', body: formData });
-        const data = await res.json();
-        statusMsg.textContent = data.message || data.error || 'Proceso completado.';
-        statusMsg.className = statusMsg.className.replace('text-gray-500','') + (res.ok ? ' text-green-600' : ' text-red-500');
-        if (res.ok) { fileInput.value = ''; uploadBtn.classList.add('hidden'); loadStudentsTable(); }
+        // Leer Excel con SheetJS en el navegador
+        const arrayBuffer = await file.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const rows = XLSX.utils.sheet_to_json(worksheet);
+
+        if(rows.length === 0) {
+          throw new Error("El archivo está vacío o no tiene el formato correcto.");
+        }
+
+        const res = await uploadAlumnosFromData(rows);
+        
+        statusMsg.textContent = res.message || 'Proceso completado.';
+        statusMsg.className = statusMsg.className.replace('text-gray-500','') + (res.success ? ' text-green-600' : ' text-red-500');
+        
+        if (res.success) { 
+          fileInput.value = ''; 
+          uploadBtn.classList.add('hidden'); 
+          loadStudentsTable(); 
+        }
       } catch(e) {
-        statusMsg.textContent = 'Error al subir el archivo.';
+        statusMsg.textContent = e.message || 'Error al procesar el archivo.';
+        statusMsg.className = statusMsg.className.replace('text-gray-500','') + ' text-red-500';
       } finally {
         uploadBtn.textContent = 'Subir a BD';
         uploadBtn.disabled = false;
       }
     });
 
+    // Iniciar
     loadDashboardStats();
     loadStudentsTable();
     loadPrefectReports();
