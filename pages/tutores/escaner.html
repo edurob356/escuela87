@@ -153,12 +153,8 @@
       scanStatus.classList.remove('hidden');
 
       try {
-        const res = await fetch('/api/asistencias/qr', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ codigo_acceso: decodedText })
-        });
-        const data = await res.json();
+        const { registrarAsistenciaQR } = await import('../../assets/js/api-client.js');
+        const data = await registrarAsistenciaQR(decodedText);
         
         if (data.success) {
           addLogEntry(data.student.nombre_completo, data.status, data.entry_time);

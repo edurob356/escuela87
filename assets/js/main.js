@@ -148,27 +148,58 @@ document.addEventListener("DOMContentLoaded", () => {
             uploadStatus.textContent = "Procesando y mandando a la base de datos...";
 
             try {
-                const response = await fetch("http://localhost:3000/api/upload-alumnos", {
-                    method: "POST",
-                    body: formData
-                });
-                const result = await response.json();
+                const { uploadAlumnosFromData } = await import('./api-client.js');
                 
-                if (response.ok) {
-                    uploadStatus.classList.add("text-green-600");
-                    uploadStatus.textContent = "✅ " + (result.message || "Subido con éxito");
-                    if (window.loadStudentsList) window.loadStudentsList();
-                } else {
-                    uploadStatus.classList.add("text-red-600");
-                    uploadStatus.textContent = "❌ Error: " + result.error;
+                // Parse excel data client-side using SheetJS
+                // We need to load xlsx if it's not already in window
+                if (!window.XLSX) {
+                    await import('https://cdn.sheetjs.com/xlsx-0.20.0/package/xlsx.mjs')
+                      .then(m => { window.XLSX = m; })
+                      .catch(e => {
+                          // fallback if esm fails
+                          const script = document.createElement('script');
+                          script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+                          document.head.appendChild(script);
+                          return new Promise(resolve => script.onload = resolve);
+                      });
                 }
+
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        const firstSheetName = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[firstSheetName];
+                        const rows = XLSX.utils.sheet_to_json(worksheet);
+
+                        if (rows.length === 0) throw new Error("El archivo está vacío");
+
+                        const result = await uploadAlumnosFromData(rows);
+
+                        if (result && result.success) {
+                            uploadStatus.classList.add("text-green-600");
+                            uploadStatus.textContent = "✅ " + (result.message || "Subido con éxito");
+                            if (window.loadStudentsList) window.loadStudentsList();
+                        } else {
+                            uploadStatus.classList.add("text-red-600");
+                            uploadStatus.textContent = "❌ Error: " + (result ? result.error : "Desconocido");
+                        }
+                    } catch (err) {
+                        uploadStatus.classList.add("text-red-600");
+                        uploadStatus.textContent = "❌ Error procesando Excel: " + err.message;
+                    } finally {
+                        uploadBtn.disabled = false;
+                        excelInput.value = ""; // Reset
+                        setTimeout(() => uploadBtn.classList.add("hidden"), 3000); // Hide button after a bit
+                    }
+                };
+                reader.readAsArrayBuffer(file);
             } catch (error) {
+                console.error(error);
                 uploadStatus.classList.add("text-red-600");
-                uploadStatus.textContent = "❌ Error de conexión: Asegúrate de que tu servidor node esté corriendo.";
-            } finally {
+                uploadStatus.textContent = "❌ Error de conexión con Supabase.";
                 uploadBtn.disabled = false;
-                excelInput.value = ""; // Reset
-                setTimeout(() => uploadBtn.classList.add("hidden"), 3000); // Hide button after a bit
             }
         });
     }
@@ -179,8 +210,8 @@ document.addEventListener("DOMContentLoaded", () => {
     window.loadStudentsList = async () => {
         if (!studentsTableBody) return;
         try {
-            const res = await fetch("http://localhost:3000/api/alumnos");
-            const students = await res.json();
+            const { getAlumnos } = await import('./api-client.js');
+            const students = await getAlumnos();
             
             if (students.length === 0) {
                studentsTableBody.innerHTML = `<tr><td colspan="4" class="text-center py-6 text-gray-500 font-bold">No hay alumnos registrados. ¡Sube un Excel!</td></tr>`;
@@ -208,8 +239,9 @@ document.addEventListener("DOMContentLoaded", () => {
     window.deleteStudent = async (id) => {
         if (!confirm("¿Seguro que deseas eliminar a este alumno del sistema?")) return;
         try {
-            const res = await fetch("http://localhost:3000/api/alumnos/" + id, { method: "DELETE" });
-            if (res.ok) {
+            const { deleteAlumno } = await import('./api-client.js');
+            const success = await deleteAlumno(id);
+            if (success) {
                 window.loadStudentsList();
             } else {
                 alert("Error eliminando alumno de la base.");
