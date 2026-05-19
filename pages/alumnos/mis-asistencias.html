@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Montserrat', sans-serif; background: #f3f4f6; min-height: 100vh; }
@@ -71,6 +72,22 @@
     #loading { text-align:center; color:#9ca3af; font-size:.875rem; font-weight:700; padding:2rem; }
     #empty   { text-align:center; color:#9ca3af; font-size:.875rem; font-weight:600; padding:2rem; display:none; }
 
+    .qr-card { background:white; border-radius:1rem; padding:1.5rem; box-shadow:0 2px 8px rgba(0,0,0,.06); border:1px solid #e5e7eb; margin-bottom:1.5rem; display:flex; align-items:center; gap:1.5rem; flex-wrap:wrap; }
+    .qr-box { background:#fff; border:3px solid #e5e7eb; border-radius:.75rem; padding:.75rem; flex-shrink:0; }
+    .qr-info { flex:1; min-width:180px; }
+    .qr-info h2 { font-size:.875rem; font-weight:800; color:#111827; text-transform:uppercase; letter-spacing:.05em; margin-bottom:.35rem; }
+    .qr-info p  { font-size:.75rem; color:#6b7280; line-height:1.5; }
+    .qr-btn { display:inline-flex; align-items:center; gap:.5rem; margin-top:.75rem; padding:.5rem 1rem; background:linear-gradient(135deg,#6b0f1a,#8b2635); color:white; border:none; border-radius:.6rem; font-family:'Montserrat',sans-serif; font-size:.75rem; font-weight:700; cursor:pointer; transition:all .2s; }
+    .qr-btn:hover { transform:translateY(-1px); box-shadow:0 4px 12px rgba(107,15,26,.3); }
+
+    /* Modal QR pantalla completa */
+    #qr-fullscreen { display:none; position:fixed; inset:0; background:white; z-index:999; flex-direction:column; align-items:center; justify-content:center; gap:1.5rem; }
+    #qr-fullscreen.active { display:flex; }
+    #qr-fullscreen h3 { font-size:1.1rem; font-weight:800; color:#111827; }
+    #qr-fullscreen p  { font-size:.8rem; color:#6b7280; }
+    #qr-fs-container { padding:1rem; border:4px solid #e5e7eb; border-radius:1rem; }
+    #close-fs-btn { padding:.6rem 2rem; background:#6b0f1a; color:white; border:none; border-radius:.6rem; font-family:'Montserrat',sans-serif; font-weight:700; font-size:.875rem; cursor:pointer; }
+
     @media (max-width:600px) {
       .kpi-row { grid-template-columns: repeat(3,1fr); gap:.5rem; }
       .kpi-val { font-size:1.5rem; }
@@ -96,6 +113,21 @@
       <div>
         <div class="student-name" id="student-name">Cargando...</div>
         <div class="student-sub" id="student-sub"></div>
+      </div>
+    </div>
+
+    <!-- QR Card -->
+    <div class="qr-card">
+      <div class="qr-box">
+        <div id="qrcode-display"></div>
+      </div>
+      <div class="qr-info">
+        <h2>Mi Credencial QR</h2>
+        <p>Presenta este código al escáner de prefectura para registrar tu asistencia. Mantén la pantalla encendida y acércala a la cámara.</p>
+        <button class="qr-btn" id="qr-fullscreen-btn">
+          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0-4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+          Ver en Pantalla Completa
+        </button>
       </div>
     </div>
 
@@ -145,6 +177,14 @@
     </div>
   </div>
 
+  <!-- Modal pantalla completa del QR -->
+  <div id="qr-fullscreen">
+    <h3 id="fs-nombre"></h3>
+    <p id="fs-matricula"></p>
+    <div id="qr-fs-container"></div>
+    <button id="close-fs-btn">Cerrar</button>
+  </div>
+
   <script type="module">
     import { getMisAsistencias, getConfigPeriodos, getParciales } from '../../assets/js/api-client.js';
 
@@ -153,14 +193,45 @@
     if (!alumnoRaw) { window.location.href = 'login.html'; }
     const alumno = JSON.parse(alumnoRaw);
 
-    // Mostrar datos del alumno
+    // Mostrar datos del alumno + QR
     document.getElementById('student-name').textContent = alumno.nombre_completo;
     document.getElementById('student-initial').textContent = alumno.nombre_completo.charAt(0).toUpperCase();
     document.getElementById('student-sub').textContent = `${alumno.grado || '?'}° ${alumno.grupo || ''} · Matrícula: ${alumno.matricula || '—'}`;
 
+    // Generar QR con el codigo_acceso guardado en sesión
+    if (alumno.codigo_acceso) {
+      generarQR(alumno.codigo_acceso, 'qrcode-display', 128);
+    } else {
+      document.getElementById('qrcode-display').innerHTML = '<p style="font-size:.7rem;color:#9ca3af;text-align:center;padding:1rem">Sin QR asignado.<br>Contacta a prefectura.</p>';
+    }
     document.getElementById('logout-btn').addEventListener('click', () => {
       sessionStorage.removeItem('alumno');
       window.location.href = 'login.html';
+    });
+
+    // Generar QR del alumno
+    function generarQR(codigoAcceso, containerId, size = 128) {
+      const container = document.getElementById(containerId);
+      if (!container || !codigoAcceso) return;
+      container.innerHTML = '';
+      new QRCode(container, {
+        text: codigoAcceso,
+        width: size, height: size,
+        colorDark: '#6b0f1a', colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.H
+      });
+    }
+
+    // Pantalla completa
+    document.getElementById('qr-fullscreen-btn').addEventListener('click', () => {
+      document.getElementById('fs-nombre').textContent    = alumno.nombre_completo;
+      document.getElementById('fs-matricula').textContent = `Matrícula: ${alumno.matricula || '—'}`;
+      generarQR(alumno.codigo_acceso, 'qr-fs-container', 240);
+      document.getElementById('qr-fullscreen').classList.add('active');
+    });
+    document.getElementById('close-fs-btn').addEventListener('click', () => {
+      document.getElementById('qr-fullscreen').classList.remove('active');
+      document.getElementById('qr-fs-container').innerHTML = '';
     });
 
     let allRecords = [];

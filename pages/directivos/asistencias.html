@@ -254,7 +254,7 @@
 
   <script src="../../assets/js/main.js"></script>
   <script type="module">
-    import { registrarAsistencia, getAsistenciasHoy, searchStudents, getConfigPeriodos, getParcialActivo, esDiaInhabil } from '../../assets/js/api-client.js';
+    import { registrarAsistencia, registrarAsistenciaQR, getAsistenciasHoy, getConfigPeriodos, getParcialActivo, esDiaInhabil } from '../../assets/js/api-client.js';
 
     let isDiaInhabilHoy = false;
 
@@ -460,36 +460,26 @@
     async function handleQRDetected(qrData) {
       scannerFeedback.classList.remove('hidden', 'bg-red-50', 'text-red-700', 'bg-green-50', 'text-green-700');
       scannerFeedback.classList.add('bg-yellow-50', 'text-yellow-700');
-      scannerFeedback.textContent = `QR detectado: ${qrData} — registrando...`;
+      scannerFeedback.textContent = `QR detectado — registrando...`;
 
-      // Buscar alumno por ID numérico o por matrícula/nombre vía Supabase
-      let studentId = null;
-      if (/^\d+$/.test(qrData.trim())) {
-        studentId = qrData.trim();
-      } else {
-        const arr = await searchStudents(qrData.trim());
-        if (arr.length > 0) studentId = arr[0].id;
-      }
+      // Usar registrarAsistenciaQR que busca por codigo_acceso, matrícula o nombre
+      const result = await registrarAsistenciaQR(qrData.trim());
 
-      if (!studentId) {
-        scannerFeedback.classList.replace('bg-yellow-50','bg-red-50');
-        scannerFeedback.classList.replace('text-yellow-700','text-red-700');
-        scannerFeedback.textContent = `No se encontró alumno para: ${qrData}`;
-        setTimeout(() => { scannerFeedback.classList.add('hidden'); animFrame = requestAnimationFrame(scanFrame); }, 2500);
-        return;
-      }
-
-      const result = await registrarAsistencia(studentId, 'A tiempo');
       if (result.success) {
         scannerFeedback.classList.replace('bg-yellow-50','bg-green-50');
         scannerFeedback.classList.replace('text-yellow-700','text-green-700');
-        scannerFeedback.textContent = `✅ Asistencia registrada (ID: ${studentId})`;
+        const nombre = result.student?.nombre_completo || 'Alumno';
+        scannerFeedback.textContent = `✅ ${nombre} — ${result.status}`;
       } else {
         scannerFeedback.classList.replace('bg-yellow-50','bg-red-50');
         scannerFeedback.classList.replace('text-yellow-700','text-red-700');
-        scannerFeedback.textContent = result.error === 'dia_inhabil' ? `Día Inhábil: ${result.message}` : `Error al guardar: ${result.error}`;
+        scannerFeedback.textContent = result.error === 'dia_inhabil'
+          ? `Día Inhábil: ${result.message}`
+          : result.error === 'Alumno no encontrado'
+          ? `QR no reconocido. Verifica que el alumno esté registrado.`
+          : `Error: ${result.error}`;
       }
-      setTimeout(() => { scannerFeedback.classList.add('hidden'); animFrame = requestAnimationFrame(scanFrame); }, 2000);
+      setTimeout(() => { scannerFeedback.classList.add('hidden'); animFrame = requestAnimationFrame(scanFrame); }, 2500);
     }
 
     if (activateBtn) activateBtn.addEventListener('click', initCamera);

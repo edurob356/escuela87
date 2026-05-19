@@ -495,7 +495,7 @@ export async function loginAlumno(matricula, curp) {
   try {
     const { data, error } = await supabase
       .from('alumnos')
-      .select('id, nombre_completo, grado, grupo, matricula, curp')
+      .select('id, nombre_completo, grado, grupo, matricula, curp, codigo_acceso')
       .eq('matricula', matricula.trim().toUpperCase())
       .eq('curp', curp.trim().toUpperCase())
       .maybeSingle();
