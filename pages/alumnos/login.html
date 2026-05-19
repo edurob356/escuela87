@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Secundaria Técnica No. 87 — Portal del Alumno</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Montserrat', sans-serif;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #6b0f1a 0%, #8b2635 40%, #4a0a12 100%);
+      display: flex; align-items: center; justify-content: center;
+      padding: 1.5rem;
+    }
+    .card {
+      background: white;
+      border-radius: 1.5rem;
+      padding: 2.5rem;
+      width: 100%; max-width: 400px;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.4);
+      animation: slideUp .4s ease;
+    }
+    @keyframes slideUp {
+      from { opacity:0; transform: translateY(30px); }
+      to   { opacity:1; transform: translateY(0); }
+    }
+    .logo-ring {
+      width: 72px; height: 72px;
+      background: linear-gradient(135deg, #d4af37, #f5d060);
+      border-radius: 1rem;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 1rem;
+      font-size: 1.5rem; font-weight: 900;
+      color: #6b0f1a;
+      box-shadow: 0 8px 24px rgba(212,175,55,0.4);
+    }
+    h1 { text-align:center; font-size: 1.25rem; font-weight:800; color:#6b0f1a; }
+    p.sub { text-align:center; font-size:.75rem; color:#9ca3af; margin-top:.25rem; margin-bottom:2rem; font-weight:600; }
+    label { display:block; font-size:.75rem; font-weight:700; color:#374151; margin-bottom:.4rem; text-transform:uppercase; letter-spacing:.05em; }
+    input {
+      width:100%; padding:.75rem 1rem;
+      border: 2px solid #e5e7eb; border-radius:.75rem;
+      font-family: 'Montserrat', sans-serif; font-size:.875rem; font-weight:600;
+      outline:none; transition: border-color .2s;
+      margin-bottom:1.25rem;
+    }
+    input:focus { border-color: #8b2635; }
+    input::placeholder { color:#d1d5db; font-weight:400; }
+    button#login-btn {
+      width:100%; padding:.875rem;
+      background: linear-gradient(135deg, #8b2635, #6b0f1a);
+      color:white; border:none; border-radius:.75rem;
+      font-family:'Montserrat',sans-serif; font-size:.875rem; font-weight:800;
+      text-transform:uppercase; letter-spacing:.1em; cursor:pointer;
+      transition: all .2s; box-shadow: 0 4px 15px rgba(107,15,26,.35);
+    }
+    button#login-btn:hover { transform:translateY(-2px); box-shadow: 0 8px 20px rgba(107,15,26,.45); }
+    button#login-btn:disabled { opacity:.6; transform:none; cursor:not-allowed; }
+    #error-msg {
+      background:#fef2f2; border:1px solid #fecaca; color:#dc2626;
+      padding:.75rem 1rem; border-radius:.75rem; font-size:.8rem; font-weight:700;
+      text-align:center; margin-top:1rem; display:none;
+    }
+    .hint { text-align:center; font-size:.7rem; color:#9ca3af; margin-top:1.25rem; }
+    .hint span { color:#8b2635; font-weight:700; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo-ring">SEP</div>
+    <h1>Portal del Alumno</h1>
+    <p class="sub">Secundaria Técnica No. 87 · Ciclo 2025-2026</p>
+
+    <label for="matricula-input">Matrícula</label>
+    <input id="matricula-input" type="text" placeholder="Ej. ABCD123456" autocomplete="off" />
+
+    <label for="curp-input">CURP (contraseña)</label>
+    <input id="curp-input" type="password" placeholder="Tu CURP en mayúsculas" autocomplete="off" />
+
+    <button id="login-btn">Iniciar Sesión</button>
+    <div id="error-msg"></div>
+
+    <p class="hint">Tu contraseña es tu <span>CURP</span> en mayúsculas.<br>Si no sabes tu matrícula, pregunta en prefectura.</p>
+  </div>
+
+  <script type="module">
+    import { loginAlumno } from '../../assets/js/api-client.js';
+
+    const loginBtn  = document.getElementById('login-btn');
+    const errorMsg  = document.getElementById('error-msg');
+    const matInput  = document.getElementById('matricula-input');
+    const curpInput = document.getElementById('curp-input');
+
+    async function doLogin() {
+      const matricula = matInput.value.trim();
+      const curp      = curpInput.value.trim();
+
+      if (!matricula || !curp) {
+        errorMsg.textContent = 'Por favor ingresa tu matrícula y CURP.';
+        errorMsg.style.display = 'block'; return;
+      }
+
+      loginBtn.textContent = 'Verificando...';
+      loginBtn.disabled = true;
+      errorMsg.style.display = 'none';
+
+      const result = await loginAlumno(matricula, curp);
+
+      if (result.success) {
+        sessionStorage.setItem('alumno', JSON.stringify(result.alumno));
+        window.location.href = 'mis-asistencias.html';
+      } else {
+        errorMsg.textContent = result.error || 'Matrícula o CURP incorrectos.';
+        errorMsg.style.display = 'block';
+        loginBtn.textContent = 'Iniciar Sesión';
+        loginBtn.disabled = false;
+      }
+    }
+
+    loginBtn.addEventListener('click', doLogin);
+    curpInput.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+    matInput.addEventListener('keydown', e => { if (e.key === 'Enter') curpInput.focus(); });
+  </script>
+</body>
+</html>

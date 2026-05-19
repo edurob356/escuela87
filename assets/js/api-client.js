@@ -476,11 +476,12 @@ export async function uploadAlumnosFromData(rows) {
     const nombre         = row['Nombre Completo'] || row['nombre'] || row['Estudiante'] || '';
     const grado          = row['Grado']  || row['grado']  || '';
     const grupo          = row['Grupo']  || row['grupo']  || '';
-    const matricula      = row['Matricula'] || row['Curp'] || null;
-    const codigo_acceso  = row['Codigo'] || row['Nip']    || crypto.randomUUID();
+    const matricula      = row['Matricula'] || row['matricula'] || null;
+    const curp           = row['CURP'] || row['Curp'] || row['curp'] || null;
+    const codigo_acceso  = row['Codigo'] || row['Nip'] || crypto.randomUUID();
     if (nombre) {
       await supabase.from('alumnos').upsert(
-        { nombre_completo: nombre, grado, grupo, matricula, codigo_acceso },
+        { nombre_completo: nombre, grado, grupo, matricula, curp, codigo_acceso },
         { onConflict: 'matricula' }
       );
       count++;
@@ -488,3 +489,32 @@ export async function uploadAlumnosFromData(rows) {
   }
   return { success: true, message: `Se procesaron ${count} alumnos del Excel.` };
 }
+
+// ─── 18. LOGIN DE ALUMNO (Matrícula + CURP) ───────────────────────────────────
+export async function loginAlumno(matricula, curp) {
+  try {
+    const { data, error } = await supabase
+      .from('alumnos')
+      .select('id, nombre_completo, grado, grupo, matricula, curp')
+      .eq('matricula', matricula.trim().toUpperCase())
+      .eq('curp', curp.trim().toUpperCase())
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return { success: false, error: 'Matrícula o CURP incorrectos.' };
+    return { success: true, alumno: data };
+  } catch (e) { console.error('loginAlumno:', e); return { success: false, error: e.message }; }
+}
+
+// ─── 19. MIS ASISTENCIAS (vista del alumno) ───────────────────────────────────
+export async function getMisAsistencias(alumnoId) {
+  try {
+    const { data, error } = await supabase
+      .from('asistencias')
+      .select('id, date, entry_time, status, parcial_id, parciales(nombre, fecha_inicio, fecha_fin)')
+      .eq('student_id', alumnoId)
+      .order('date', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  } catch (e) { console.error('getMisAsistencias:', e); return []; }
+}
+
