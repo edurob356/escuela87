@@ -205,19 +205,214 @@ export async function registrarAsistencia(studentId, status) {
   try {
     const today = new Date().toISOString().split('T')[0];
     const now   = new Date().toTimeString().split(' ')[0];
+
+    // Verificar si el día es inhábil
+    const inhabil = await esDiaInhabil(today);
+    if (inhabil) return { success: false, error: 'dia_inhabil', message: inhabil.razon || 'Día inhábil' };
+
+    // Obtener parcial activo para asociarlo
+    const parcialActivo = await getParcialActivo();
+    const parcialId = parcialActivo?.id || null;
+
     const { data: existing } = await supabase
       .from('asistencias').select('id')
       .eq('student_id', studentId).eq('date', today).maybeSingle();
     if (existing) {
       await supabase.from('asistencias')
-        .update({ status, entry_time: now })
+        .update({ status, entry_time: now, parcial_id: parcialId })
         .eq('student_id', studentId).eq('date', today);
     } else {
       await supabase.from('asistencias')
-        .insert({ student_id: studentId, date: today, entry_time: now, status });
+        .insert({ student_id: studentId, date: today, entry_time: now, status, parcial_id: parcialId });
+    }
+    return { success: true, parcial: parcialActivo };
+  } catch (e) { console.error('registrarAsistencia:', e); return { success: false, error: e.message }; }
+}
+
+// ─── 14. CONFIG DE PERIODOS ───────────────────────────────────────────────────
+export async function getConfigPeriodos() {
+  try {
+    const { data, error } = await supabase
+      .from('config_periodos').select('*').limit(1).maybeSingle();
+    if (error) throw error;
+    return data || { activo: false, tipo_ciclo: 'bimestre', duracion_ciclo_semanas: 40, num_parciales_por_periodo: 2, duracion_parcial_semanas: 4 };
+  } catch (e) { console.error('getConfigPeriodos:', e); return null; }
+}
+
+export async function saveConfigPeriodos(cfg) {
+  try {
+    const { data: existing } = await supabase.from('config_periodos').select('id').limit(1).maybeSingle();
+    if (existing) {
+      const { error } = await supabase.from('config_periodos')
+        .update({ ...cfg, updated_at: new Date().toISOString() }).eq('id', existing.id);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase.from('config_periodos').insert({ ...cfg });
+      if (error) throw error;
     }
     return { success: true };
-  } catch (e) { console.error('registrarAsistencia:', e); return { success: false, error: e.message }; }
+  } catch (e) { console.error('saveConfigPeriodos:', e); return { success: false, error: e.message }; }
+}
+
+// ─── 15. PARCIALES ────────────────────────────────────────────────────────────
+export async function getParciales() {
+  try {
+    const { data, error } = await supabase
+      .from('parciales').select('*')
+      .order('fecha_inicio', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  } catch (e) { console.error('getParciales:', e); return []; }
+}
+
+export async function getParcialActivo() {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const { data, error } = await supabase
+      .from('parciales').select('*')
+      .lte('fecha_inicio', today)
+      .gte('fecha_fin', today)
+      .eq('activo', true)
+      .limit(1).maybeSingle();
+    if (error) throw error;
+    return data || null;
+  } catch (e) { console.error('getParcialActivo:', e); return null; }
+}
+
+export async function createParcial(p) {
+  try {
+    const { data, error } = await supabase.from('parciales').insert(p).select().single();
+    if (error) throw error;
+    return { success: true, parcial: data };
+  } catch (e) { console.error('createParcial:', e); return { success: false, error: e.message }; }
+}
+
+export async function updateParcial(id, p) {
+  try {
+    const { error } = await supabase.from('parciales').update(p).eq('id', id);
+    if (error) throw error;
+    return { success: true };
+  } catch (e) { console.error('updateParcial:', e); return { success: false, error: e.message }; }
+}
+
+export async function deleteParcial(id) {
+  try {
+    const { error } = await supabase.from('parciales').delete().eq('id', id);
+    return !error;
+  } catch (e) { console.error('deleteParcial:', e); return false; }
+}
+
+export async function deleteAllParciales() {
+  try {
+    const { error } = await supabase.from('parciales').delete().neq('id', 0);
+    return !error;
+  } catch (e) { console.error('deleteAllParciales:', e); return false; }
+}
+
+// Genera automáticamente los parciales a partir de la configuración y los guarda
+export async function generarParciales(cfg) {
+  try {
+    // cfg: { tipo_ciclo, fecha_inicio_ciclo, duracion_ciclo_semanas, num_parciales_por_periodo, duracion_parcial_semanas }
+    const cicloNombres = { bimestre: ['1er','2do','3er','4to','5to','6to'], trimestre: ['1er','2do','3er','4to'], semestre: ['1er','2do'] };
+    const tipoSingular = { bimestre: 'Bimestre', trimestre: 'Trimestre', semestre: 'Semestre' };
+    const semanasDuPeriodo = { bimestre: 8, trimestre: 12, semestre: 18 };
+
+    const semsPorPeriodo = semanasDuPeriodo[cfg.tipo_ciclo] || 8;
+    const totalPeriodos  = Math.floor(cfg.duracion_ciclo_semanas / semsPorPeriodo);
+    const ms1Day = 86400000;
+    const ms7Day = 7 * ms1Day;
+
+    let fechaActual = new Date(cfg.fecha_inicio_ciclo);
+    const parciales = [];
+
+    for (let c = 1; c <= totalPeriodos; c++) {
+      const semsXParcial = Math.floor(semsPorPeriodo / cfg.num_parciales_por_periodo);
+      for (let p = 1; p <= cfg.num_parciales_por_periodo; p++) {
+        const durSems = cfg.duracion_parcial_semanas || semsXParcial;
+        const fechaInicio = new Date(fechaActual);
+        const fechaFin    = new Date(fechaActual.getTime() + durSems * ms7Day - ms1Day);
+        parciales.push({
+          nombre: `${cicloNombres[cfg.tipo_ciclo]?.[c-1] || c+'°'} ${tipoSingular[cfg.tipo_ciclo]} — Parcial ${p}`,
+          ciclo_tipo: cfg.tipo_ciclo,
+          numero_ciclo: c,
+          numero_parcial: p,
+          fecha_inicio: fechaInicio.toISOString().split('T')[0],
+          fecha_fin:    fechaFin.toISOString().split('T')[0],
+          activo: true
+        });
+        fechaActual = new Date(fechaFin.getTime() + ms1Day);
+      }
+    }
+
+    await deleteAllParciales();
+    const { error } = await supabase.from('parciales').insert(parciales);
+    if (error) throw error;
+    return { success: true, total: parciales.length };
+  } catch (e) { console.error('generarParciales:', e); return { success: false, error: e.message }; }
+}
+
+// ─── 16. DÍAS INHÁBILES ───────────────────────────────────────────────────────
+export async function getDiasInhabiles() {
+  try {
+    const { data, error } = await supabase
+      .from('dias_inhabiles').select('*').order('fecha', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  } catch (e) { console.error('getDiasInhabiles:', e); return []; }
+}
+
+export async function esDiaInhabil(fecha) {
+  try {
+    const { data } = await supabase
+      .from('dias_inhabiles').select('id, razon').eq('fecha', fecha).maybeSingle();
+    return data || null;
+  } catch (e) { return null; }
+}
+
+export async function createDiaInhabil(fecha, razon = '') {
+  try {
+    const { data, error } = await supabase
+      .from('dias_inhabiles').upsert({ fecha, razon }, { onConflict: 'fecha' }).select().single();
+    if (error) throw error;
+    return { success: true, dia: data };
+  } catch (e) { console.error('createDiaInhabil:', e); return { success: false, error: e.message }; }
+}
+
+export async function deleteDiaInhabil(id) {
+  try {
+    const { error } = await supabase.from('dias_inhabiles').delete().eq('id', id);
+    return !error;
+  } catch (e) { console.error('deleteDiaInhabil:', e); return false; }
+}
+
+// ─── 17. ASISTENCIAS POR PARCIAL ─────────────────────────────────────────────
+export async function getAsistenciasPorParcial(parcialId, grado = '', grupo = '') {
+  try {
+    let q = supabase
+      .from('alumnos')
+      .select('id, nombre_completo, grado, grupo, matricula, asistencias!left(status, entry_time, date, parcial_id)')
+      .order('nombre_completo');
+    if (grado) q = q.ilike('grado', `%${grado}%`);
+    if (grupo) q = q.eq('grupo', grupo);
+    const { data, error } = await q;
+    if (error) throw error;
+    return (data || []).map(a => {
+      const asistsParcial = a.asistencias?.filter(x => String(x.parcial_id) === String(parcialId)) || [];
+      const presentes = asistsParcial.filter(x => x.status === 'A tiempo' || x.status === 'Retardo').length;
+      const faltas    = asistsParcial.filter(x => x.status === 'Falta').length;
+      return {
+        id: a.id,
+        nombre_completo: a.nombre_completo,
+        grado: a.grado,
+        grupo: a.grupo,
+        matricula: a.matricula,
+        presentes,
+        faltas,
+        total: asistsParcial.length,
+        porcentaje: asistsParcial.length > 0 ? Math.round((presentes / asistsParcial.length) * 100) : null
+      };
+    });
+  } catch (e) { console.error('getAsistenciasPorParcial:', e); return []; }
 }
 
 // ─── 11. LISTA DE ASISTENCIAS HOY ────────────────────────────────────────────

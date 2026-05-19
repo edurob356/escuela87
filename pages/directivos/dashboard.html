@@ -59,6 +59,10 @@
           <svg class="h-5 w-5 group-hover:text-sepGold transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
           <span class="font-medium tracking-wide">Búsqueda Alumnos</span>
         </a>
+        <a class="flex items-center space-x-3 p-3.5 rounded-xl text-white/70 hover:text-white hover:bg-white/10 hover:translate-x-1 transition-all duration-300 group" href="periodos.html">
+          <svg class="h-5 w-5 group-hover:text-sepGold transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+          <span class="font-medium tracking-wide">Periodos Académicos</span>
+        </a>
       </nav>
 
       <!-- User Info Footer -->
@@ -104,7 +108,22 @@
       <div class="p-6 md:p-10 space-y-8 md:space-y-10 max-w-7xl mx-auto w-full">
         
         <!-- BEGIN: Global Statistics Row -->
-        <section class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 opacity-0 animate-fade-in-up">
+        <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 opacity-0 animate-fade-in-up">
+          
+          <!-- Active Parcial Card -->
+          <article id="dashboard-parcial-card" class="hidden bg-white p-6 md:p-8 rounded-2xl shadow-premium hover:shadow-2xl transition-all duration-400 hover:-translate-y-1.5 border border-sepBeigeDark group relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-400 to-indigo-500"></div>
+            <div class="flex justify-between items-start mb-4">
+              <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider font-heading">Parcial en Curso</h3>
+              <div class="p-2 bg-blue-50 rounded-lg text-blue-600 group-hover:bg-blue-500 group-hover:text-white transition-colors duration-300">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+              </div>
+            </div>
+            <div class="mt-2">
+              <span id="dashboard-parcial-nombre" class="text-xl md:text-2xl font-extrabold text-gray-800 tracking-tight font-heading">--</span>
+              <p id="dashboard-parcial-fechas" class="text-gray-400 text-xs font-medium mt-1">Cargando...</p>
+            </div>
+          </article>
           
           <!-- Attendance Card -->
           <article class="bg-white p-6 md:p-8 rounded-2xl shadow-premium hover:shadow-2xl transition-all duration-400 hover:-translate-y-1.5 border border-sepBeigeDark group relative overflow-hidden">
@@ -145,10 +164,10 @@
           </article>
 
           <!-- Reports Card -->
-          <article class="bg-white p-6 md:p-8 rounded-2xl shadow-premium hover:shadow-2xl transition-all duration-400 hover:-translate-y-1.5 border border-sepBeigeDark group relative overflow-hidden sm:col-span-2 md:col-span-1 stagger-2 opacity-0 animate-fade-in-up">
+          <article class="bg-white p-6 md:p-8 rounded-2xl shadow-premium hover:shadow-2xl transition-all duration-400 hover:-translate-y-1.5 border border-sepBeigeDark group relative overflow-hidden stagger-2 opacity-0 animate-fade-in-up">
             <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-sepGold to-yellow-500"></div>
             <div class="flex justify-between items-start mb-4">
-              <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider font-heading">Reportes Disciplinarios</h3>
+              <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wider font-heading">Reportes</h3>
               <div class="p-2 bg-yellow-50 rounded-lg text-sepGoldDark group-hover:bg-sepGold group-hover:text-white transition-colors duration-300">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"></path></svg>
               </div>
@@ -275,13 +294,29 @@
         
       </div>
     </main>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="delete-modal" class="fixed inset-0 z-50 hidden bg-black/50 backdrop-blur-sm flex items-center justify-center transition-opacity duration-300 opacity-0">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 transform scale-95 transition-transform duration-300">
+        <div class="flex items-center justify-center w-12 h-12 rounded-full bg-red-100 mb-4 mx-auto">
+          <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+        </div>
+        <h3 class="text-lg font-extrabold text-gray-900 text-center font-heading">Confirmar Eliminación</h3>
+        <p class="text-sm text-gray-500 text-center mt-2" id="delete-modal-text">¿Estás seguro de que deseas eliminar permanentemente a este alumno? Esta acción no se puede deshacer.</p>
+        <div class="mt-6 flex flex-col sm:flex-row gap-3">
+          <button id="cancel-delete-btn" class="w-full bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-xl text-sm font-bold hover:bg-gray-50 transition-colors">Cancelar</button>
+          <button id="confirm-delete-btn" class="w-full bg-red-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md hover:bg-red-700 transition-colors">Eliminar Alumno</button>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <script src="../../assets/js/main.js"></script>
   <!-- Cargar SheetJS desde CDN para parsear Excel en el cliente -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script type="module">
-    import { getStats, getAlumnos, deleteAlumno, getReportesDisciplina, uploadAlumnosFromData } from '../../assets/js/api-client.js';
+    import { getStats, getAlumnos, deleteAlumno, getReportesDisciplina, uploadAlumnosFromData, getConfigPeriodos, getParcialActivo } from '../../assets/js/api-client.js';
 
     // ── Fetch & populate the KPI cards ───────────────────────────────────────
     async function loadDashboardStats() {
@@ -301,6 +336,23 @@
         // Cargar total de reportes disciplinarios
         const repData = await getReportesDisciplina();
         if (repEl) repEl.textContent = Array.isArray(repData) ? repData.length : '--';
+
+        // Cargar configuración de periodos
+        const cfg = await getConfigPeriodos();
+        const parcialCard = document.getElementById('dashboard-parcial-card');
+        const parcialNombre = document.getElementById('dashboard-parcial-nombre');
+        const parcialFechas = document.getElementById('dashboard-parcial-fechas');
+        if (cfg && cfg.activo) {
+          parcialCard.classList.remove('hidden');
+          const pActivo = await getParcialActivo();
+          if (pActivo) {
+            parcialNombre.textContent = pActivo.nombre;
+            parcialFechas.textContent = \`\${pActivo.fecha_inicio} al \${pActivo.fecha_fin}\`;
+          } else {
+            parcialNombre.textContent = 'Ninguno';
+            parcialFechas.textContent = 'No hay parcial en curso';
+          }
+        }
       } catch(e) {
         console.warn('Error cargando estadísticas:', e);
       }
@@ -322,7 +374,7 @@
             <td class="px-6 py-3 text-gray-500">${a.grado || '—'}° ${a.grupo || ''}</td>
             <td class="px-6 py-3 text-gray-400 font-mono text-xs">${a.matricula || '—'}</td>
             <td class="px-6 py-3 text-center">
-              <button onclick="eliminarAlumnoUi('${a.id}', this)" class="text-xs text-red-400 hover:text-red-600 font-bold uppercase tracking-wide hover:underline transition-colors">Eliminar</button>
+              <button onclick="eliminarAlumnoUi('${a.id}', this, '${a.nombre_completo.replace(/'/g, "\\'")}')" class="text-xs text-red-400 hover:text-red-600 font-bold uppercase tracking-wide hover:underline transition-colors">Eliminar</button>
             </td>
           </tr>`).join('');
       } catch(e) {
@@ -331,13 +383,49 @@
     }
 
     // ── Eliminar alumno ──────────────────────────────────────────────────────
-    window.eliminarAlumnoUi = async function(id, btn) {
-      if (!confirm('¿Eliminar este alumno permanentemente?')) return;
-      btn.textContent = '...';
-      const success = await deleteAlumno(id);
-      if (success) loadStudentsTable();
-      else btn.textContent = 'Error';
+    let alumnoAEliminar = null;
+    let botonEliminarActual = null;
+    const modal = document.getElementById('delete-modal');
+
+    window.eliminarAlumnoUi = function(id, btn, nombre) {
+      alumnoAEliminar = id;
+      botonEliminarActual = btn;
+      document.getElementById('delete-modal-text').innerHTML = \`¿Estás seguro de eliminar a <br><strong>\${nombre}</strong>?<br>Esta acción borrará todas sus asistencias.\`;
+      modal.classList.remove('hidden');
+      setTimeout(() => {
+        modal.classList.remove('opacity-0');
+        modal.querySelector('div').classList.remove('scale-95');
+      }, 10);
     };
+
+    function closeModal() {
+      modal.classList.add('opacity-0');
+      modal.querySelector('div').classList.add('scale-95');
+      setTimeout(() => modal.classList.add('hidden'), 300);
+      alumnoAEliminar = null;
+      botonEliminarActual = null;
+    }
+
+    document.getElementById('cancel-delete-btn').addEventListener('click', closeModal);
+    
+    document.getElementById('confirm-delete-btn').addEventListener('click', async () => {
+      if (!alumnoAEliminar) return;
+      const btn = document.getElementById('confirm-delete-btn');
+      const originalText = btn.textContent;
+      btn.textContent = 'Eliminando...';
+      btn.disabled = true;
+
+      const success = await deleteAlumno(alumnoAEliminar);
+      if (success) {
+        loadStudentsTable();
+      } else {
+        alert('Error al eliminar el alumno.');
+      }
+      
+      btn.textContent = originalText;
+      btn.disabled = false;
+      closeModal();
+    });
 
     // ── Cargar lista disciplinaria ───────────────────────────────────────────
     async function loadPrefectReports() {

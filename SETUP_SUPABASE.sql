@@ -75,3 +75,54 @@ ON CONFLICT (email) DO NOTHING;
 INSERT INTO anuncios (title, content)
 SELECT 'Bienvenido al Sistema de Gestión Escolar', 'Sistema listo y conectado a Supabase.'
 WHERE NOT EXISTS (SELECT 1 FROM anuncios LIMIT 1);
+
+-- =====================================================
+-- SISTEMA DE PERIODOS ACADÉMICOS (OPCIONAL)
+-- Ejecutar solo si se desea activar el sistema de periodos
+-- =====================================================
+
+-- 6. Configuración global del sistema de periodos (una sola fila)
+CREATE TABLE IF NOT EXISTS config_periodos (
+  id BIGSERIAL PRIMARY KEY,
+  activo BOOLEAN DEFAULT FALSE,
+  tipo_ciclo VARCHAR(20) DEFAULT 'bimestre',  -- 'bimestre', 'trimestre', 'semestre'
+  fecha_inicio_ciclo DATE,                     -- Fecha de inicio del ciclo escolar
+  duracion_ciclo_semanas INT DEFAULT 40,       -- Duración total del ciclo en semanas
+  num_parciales_por_periodo INT DEFAULT 2,     -- Cuántos parciales por bimestre/trimestre/etc.
+  duracion_parcial_semanas INT DEFAULT 4,      -- Duración de cada parcial en semanas
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 7. Tabla de Parciales
+CREATE TABLE IF NOT EXISTS parciales (
+  id BIGSERIAL PRIMARY KEY,
+  nombre VARCHAR(100) NOT NULL,           -- Ej: "1er Bimestre - Parcial 1"
+  ciclo_tipo VARCHAR(20),                 -- 'bimestre', 'trimestre', 'semestre'
+  numero_ciclo INT,                       -- Ej: 1 = primer bimestre
+  numero_parcial INT,                     -- Ej: 1, 2, 3...
+  fecha_inicio DATE NOT NULL,
+  fecha_fin DATE NOT NULL,
+  activo BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 8. Tabla de Días Inhábiles / Vacaciones
+CREATE TABLE IF NOT EXISTS dias_inhabiles (
+  id BIGSERIAL PRIMARY KEY,
+  fecha DATE NOT NULL UNIQUE,
+  razon VARCHAR(255),                     -- Ej: "Vacaciones de invierno", "Día festivo"
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Agregar columna parcial_id a asistencias (si no existe)
+ALTER TABLE asistencias ADD COLUMN IF NOT EXISTS parcial_id BIGINT REFERENCES parciales(id) ON DELETE SET NULL;
+
+-- Desactivar RLS para tablas nuevas
+ALTER TABLE config_periodos DISABLE ROW LEVEL SECURITY;
+ALTER TABLE parciales DISABLE ROW LEVEL SECURITY;
+ALTER TABLE dias_inhabiles DISABLE ROW LEVEL SECURITY;
+
+-- Insertar configuración inicial (desactivada)
+INSERT INTO config_periodos (activo, tipo_ciclo, duracion_ciclo_semanas, num_parciales_por_periodo, duracion_parcial_semanas)
+SELECT FALSE, 'bimestre', 40, 2, 4
+WHERE NOT EXISTS (SELECT 1 FROM config_periodos);

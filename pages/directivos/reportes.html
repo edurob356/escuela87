@@ -59,6 +59,10 @@
           <svg class="h-5 w-5 group-hover:text-sepGold transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
           <span class="font-medium tracking-wide">Búsqueda Alumnos</span>
         </a>
+        <a class="flex items-center space-x-3 p-3.5 rounded-xl text-white/70 hover:text-white hover:bg-white/10 hover:translate-x-1 transition-all duration-300 group" href="periodos.html">
+          <svg class="h-5 w-5 group-hover:text-sepGold transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+          <span class="font-medium tracking-wide">Periodos Académicos</span>
+        </a>
       </nav>
 
       <!-- User Info Footer -->
@@ -114,6 +118,9 @@
                   <option>1° Grado</option>
                   <option>2° Grado</option>
                   <option>3° Grado</option>
+                </select>
+                <select id="parcial-filter" class="hidden flex-1 sm:flex-none text-sm font-bold text-sepBurgundy bg-red-50 border-red-200 rounded-xl focus:ring-sepBurgundy focus:border-sepBurgundy py-2.5 px-4 shadow-sm transition-colors cursor-pointer">
+                  <option value="">Todo el Ciclo</option>
                 </select>
                 <button onclick="window.print()" class="bg-white border-2 border-gray-200 text-gray-600 px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-gray-50 hover:text-gray-800 transition-all shadow-sm flex items-center justify-center group" title="Imprimir Repote">
                   <svg class="w-4 h-4 group-hover:scale-110 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
@@ -185,25 +192,55 @@
 
   <script src="../../assets/js/main.js"></script>
   <script type="module">
-    import { getStats, getAnnouncements, createAnnouncement, deleteAnnouncement } from '../../assets/js/api-client.js';
+    import { getStats, getAnnouncements, createAnnouncement, deleteAnnouncement, getConfigPeriodos, getParciales, getAsistenciasPorParcial } from '../../assets/js/api-client.js';
 
     // === LÓGICA DE ESTADÍSTICAS ===
-    const renderStats = async (grado='Todos los Grados') => {
-      const statsContainer = document.getElementById('stats-container');
+    const gradeSelect = document.getElementById('grade-filter');
+    const parcialSelect = document.getElementById('parcial-filter');
+    const statsContainer = document.getElementById('stats-container');
+
+    const renderStats = async () => {
+      const grado = gradeSelect.value;
+      const parcialId = parcialSelect.value;
+      
       statsContainer.innerHTML = '<p class="text-gray-500 font-bold p-4">Cargando reporte de la base de datos...</p>';
       
-      const stats = await getStats(grado);
-      if(!stats) {
-        statsContainer.innerHTML = '<p class="text-red-500 font-bold p-4">Error cargando métricas.</p>';
-        return;
+      if (parcialId) {
+        // Stats específicas del parcial
+        const rawGrado = grado === 'Todos los Grados' ? '' : grado.charAt(0);
+        const dataParcial = await getAsistenciasPorParcial(parcialId, rawGrado);
+        
+        const total = dataParcial.length;
+        let asistenciaSuma = 0;
+        let alumnosRiesgo = 0;
+        
+        dataParcial.forEach(a => {
+           if (a.porcentaje !== null) asistenciaSuma += a.porcentaje;
+           if (a.faltas > 2) alumnosRiesgo++; // Riesgo si tiene más de 2 faltas en el parcial
+        });
+        
+        const avg = total > 0 && dataParcial.some(a=>a.porcentaje!==null) ? Math.round(asistenciaSuma / dataParcial.filter(a=>a.porcentaje!==null).length) : 0;
+        const pctRiesgo = total > 0 ? Math.round((alumnosRiesgo / total) * 100) : 0;
+        
+        renderCards(total, avg, alumnosRiesgo, pctRiesgo, grado, 'Basado en el parcial seleccionado');
+      } else {
+        // Stats globales
+        const stats = await getStats(grado);
+        if(!stats) {
+          statsContainer.innerHTML = '<p class="text-red-500 font-bold p-4">Error cargando métricas.</p>';
+          return;
+        }
+        renderCards(stats.total_alumnos, stats.asistencia_promedio, stats.alumnos_riesgo, stats.porcentaje_riesgo, grado, 'Basado en periodo último mes');
       }
+    };
 
+    const renderCards = (total, avg, riesgo, pctRiesgo, grado, subtitle) => {
       statsContainer.innerHTML = `
         <div class="bg-gray-50 hover:bg-white rounded-xl p-5 border border-gray-100 shadow-sm transition-all duration-300">
           <div class="flex justify-between items-end mb-3">
             <div>
               <p class="text-xs font-bold text-gray-400 uppercase tracking-widest">Alumnado Total Escaneado</p>
-              <h4 class="text-3xl font-black text-gray-800 font-heading mt-1">${stats.total_alumnos}</h4>
+              <h4 class="text-3xl font-black text-gray-800 font-heading mt-1">${total}</h4>
             </div>
           </div>
           <p class="text-xs text-gray-500 font-medium leading-relaxed">Considerando el grupo seleccionado: ${grado}.</p>
@@ -213,12 +250,12 @@
           <div class="flex justify-between items-end mb-3">
             <div>
               <p class="text-xs font-bold text-gray-400 uppercase tracking-widest">Asistencia Promedio</p>
-              <h4 class="text-3xl font-black text-gray-800 font-heading mt-1">${stats.asistencia_promedio}%</h4>
+              <h4 class="text-3xl font-black text-gray-800 font-heading mt-1">${avg}%</h4>
             </div>
-            <span class="text-xs font-bold text-green-600 bg-green-100/50 px-2 py-1 rounded">Basado en periodo último mes</span>
+            <span class="text-xs font-bold text-green-600 bg-green-100/50 px-2 py-1 rounded">${subtitle}</span>
           </div>
           <div class="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
-            <div class="bg-gradient-to-r from-sepGold to-yellow-400 h-2.5 rounded-full" style="width: ${stats.asistencia_promedio}%"></div>
+            <div class="bg-gradient-to-r from-sepGold to-yellow-400 h-2.5 rounded-full" style="width: ${avg}%"></div>
           </div>
         </div>
 
@@ -226,22 +263,37 @@
           <div class="flex justify-between items-end mb-3">
             <div>
               <p class="text-xs font-bold text-red-400 uppercase tracking-widest">Alumnos en Rezago (Faltas)</p>
-              <h4 class="text-3xl font-black text-red-600 font-heading mt-1">${stats.alumnos_riesgo}</h4>
+              <h4 class="text-3xl font-black text-red-600 font-heading mt-1">${riesgo}</h4>
             </div>
-            <span class="text-xs font-bold text-red-600 bg-red-100 px-2 py-1 rounded">${stats.porcentaje_riesgo}% histórico</span>
+            <span class="text-xs font-bold text-red-600 bg-red-100 px-2 py-1 rounded">${pctRiesgo}% histórico</span>
           </div>
           <div class="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
-            <div class="bg-gradient-to-r from-red-500 to-red-600 h-2.5 rounded-full" style="width: ${stats.porcentaje_riesgo}%"></div>
+            <div class="bg-gradient-to-r from-red-500 to-red-600 h-2.5 rounded-full" style="width: ${pctRiesgo}%"></div>
           </div>
           <p class="text-xs text-red-800 font-medium mt-3 leading-relaxed">Atención prioritaria requerida.</p>
         </div>
       `;
     };
 
-    renderStats();
-    document.getElementById('grade-filter').addEventListener('change', (e) => {
-      renderStats(e.target.value);
-    });
+    gradeSelect.addEventListener('change', renderStats);
+    parcialSelect.addEventListener('change', renderStats);
+
+    // Inicializar selectores
+    const initSelects = async () => {
+      const cfg = await getConfigPeriodos();
+      if (cfg && cfg.activo) {
+        parcialSelect.classList.remove('hidden');
+        const parciales = await getParciales();
+        parciales.forEach(p => {
+          const opt = document.createElement('option');
+          opt.value = p.id;
+          opt.textContent = p.nombre;
+          parcialSelect.appendChild(opt);
+        });
+      }
+      renderStats();
+    };
+    initSelects();
 
     // === LÓGICA DE AVISOS ===
     const annContainer = document.getElementById('announcements-container');

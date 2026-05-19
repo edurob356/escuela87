@@ -62,6 +62,10 @@
           <svg class="h-5 w-5 group-hover:text-sepGold transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
           <span class="font-medium tracking-wide">Búsqueda Alumnos</span>
         </a>
+        <a class="flex items-center space-x-3 p-3.5 rounded-xl text-white/70 hover:text-white hover:bg-white/10 hover:translate-x-1 transition-all duration-300 group" href="periodos.html">
+          <svg class="h-5 w-5 group-hover:text-sepGold transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+          <span class="font-medium tracking-wide">Periodos Académicos</span>
+        </a>
       </nav>
 
       <!-- User Info Footer -->
@@ -105,6 +109,30 @@
 
       <!-- Main Dashboard Grid -->
       <div class="p-6 md:p-10 space-y-8 md:space-y-10 max-w-7xl mx-auto w-full">
+        
+        <!-- Periodo Banner -->
+        <div id="periodo-banner" class="hidden bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-4 flex items-center justify-between shadow-sm">
+          <div class="flex items-center gap-3">
+            <div class="p-2 bg-blue-100 rounded-lg text-blue-600">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+            </div>
+            <div>
+              <p class="text-xs font-bold text-blue-600 uppercase tracking-wider">Sistema de Periodos Activo</p>
+              <h4 id="banner-parcial-nombre" class="text-sm font-extrabold text-gray-800">--</h4>
+            </div>
+          </div>
+          <div id="banner-parcial-fecha" class="text-xs font-medium text-gray-500 hidden sm:block"></div>
+        </div>
+
+        <div id="inhabil-banner" class="hidden bg-red-50 border border-red-200 rounded-2xl p-4 flex items-center gap-3 shadow-sm">
+          <div class="p-2 bg-red-100 rounded-lg text-red-600">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+          </div>
+          <div>
+            <h4 class="text-sm font-extrabold text-red-800">Día Inhábil</h4>
+            <p id="inhabil-motivo" class="text-xs font-medium text-red-600">Hoy no se registrarán asistencias ni faltas.</p>
+          </div>
+        </div>
         
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 md:gap-10">
           
@@ -226,10 +254,42 @@
 
   <script src="../../assets/js/main.js"></script>
   <script type="module">
-    import { registrarAsistencia, getAsistenciasHoy, searchStudents } from '../../assets/js/api-client.js';
+    import { registrarAsistencia, getAsistenciasHoy, searchStudents, getConfigPeriodos, getParcialActivo, esDiaInhabil } from '../../assets/js/api-client.js';
+
+    let isDiaInhabilHoy = false;
+
+    // Load configuration to display banners
+    async function loadPeriodConfig() {
+      const today = new Date().toISOString().split('T')[0];
+      const inhabil = await esDiaInhabil(today);
+      if (inhabil) {
+        isDiaInhabilHoy = true;
+        document.getElementById('inhabil-banner').classList.remove('hidden');
+        document.getElementById('inhabil-motivo').textContent = inhabil.razon || 'Día inhábil. No se permiten registros.';
+        document.getElementById('cargar-lista-btn').disabled = true;
+        document.getElementById('activate-scanner-btn').disabled = true;
+      }
+
+      const cfg = await getConfigPeriodos();
+      if (cfg && cfg.activo) {
+        document.getElementById('periodo-banner').classList.remove('hidden');
+        const pActivo = await getParcialActivo();
+        if (pActivo) {
+          document.getElementById('banner-parcial-nombre').textContent = pActivo.nombre;
+          document.getElementById('banner-parcial-fecha').textContent = \`\${pActivo.fecha_inicio} al \${pActivo.fecha_fin}\`;
+        } else {
+          document.getElementById('banner-parcial-nombre').textContent = 'Ninguno (fuera de fechas)';
+        }
+      }
+    }
+    loadPeriodConfig();
 
     // ── Wrapper con lógica UI + llamada a Supabase ────────────────────────────
     async function marcarAsistencia(studentId, status, btn) {
+      if (isDiaInhabilHoy) {
+        alert('Hoy es un día inhábil. No se pueden registrar asistencias.');
+        return;
+      }
       btn.disabled = true;
       btn.classList.add('opacity-50');
       const data = await registrarAsistencia(studentId, status);
@@ -237,7 +297,11 @@
         const row = btn.closest('tr');
         updateRowStatus(row, studentId, status);
       } else {
-        alert('Error al registrar: ' + (data.error || 'desconocido'));
+        if (data.error === 'dia_inhabil') {
+          alert('No se puede registrar. Motivo: ' + data.message);
+        } else {
+          alert('Error al registrar: ' + (data.error || 'desconocido'));
+        }
         btn.disabled = false;
         btn.classList.remove('opacity-50');
       }
@@ -423,7 +487,7 @@
       } else {
         scannerFeedback.classList.replace('bg-yellow-50','bg-red-50');
         scannerFeedback.classList.replace('text-yellow-700','text-red-700');
-        scannerFeedback.textContent = `Error al guardar: ${result.error}`;
+        scannerFeedback.textContent = result.error === 'dia_inhabil' ? `Día Inhábil: ${result.message}` : `Error al guardar: ${result.error}`;
       }
       setTimeout(() => { scannerFeedback.classList.add('hidden'); animFrame = requestAnimationFrame(scanFrame); }, 2000);
     }
