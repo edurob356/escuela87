@@ -78,13 +78,13 @@
     <label for="matricula-input">Matrícula</label>
     <input id="matricula-input" type="text" placeholder="Ej. ABCD123456" autocomplete="off" />
 
-    <label for="curp-input">CURP (contraseña)</label>
-    <input id="curp-input" type="password" placeholder="Tu CURP en mayúsculas" autocomplete="off" />
+    <label for="curp-input">CURP o NIP (contraseña)</label>
+    <input id="curp-input" type="password" placeholder="Tu CURP o NIP" autocomplete="off" />
 
     <button id="login-btn">Iniciar Sesión</button>
     <div id="error-msg"></div>
 
-    <p class="hint">Tu contraseña es tu <span>CURP</span> en mayúsculas.<br>Si no sabes tu matrícula, pregunta en prefectura.</p>
+    <p class="hint">Tu contraseña es tu <span>CURP</span> o <span>NIP</span>.<br>Si no sabes tu matrícula, pregunta en prefectura.</p>
   </div>
 
   <script type="module">
@@ -100,7 +100,7 @@
       const curp      = curpInput.value.trim();
 
       if (!matricula || !curp) {
-        errorMsg.textContent = 'Por favor ingresa tu matrícula y CURP.';
+        errorMsg.textContent = 'Por favor ingresa tu matrícula y contraseña.';
         errorMsg.style.display = 'block'; return;
       }
 

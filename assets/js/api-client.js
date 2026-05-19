@@ -490,17 +490,24 @@ export async function uploadAlumnosFromData(rows) {
   return { success: true, message: `Se procesaron ${count} alumnos del Excel.` };
 }
 
-// ─── 18. LOGIN DE ALUMNO (Matrícula + CURP) ───────────────────────────────────
-export async function loginAlumno(matricula, curp) {
+// ─── 18. LOGIN DE ALUMNO (Matrícula + CURP o NIP) ───────────────────────────────
+export async function loginAlumno(matricula, password) {
   try {
     const { data, error } = await supabase
       .from('alumnos')
       .select('id, nombre_completo, grado, grupo, matricula, curp, codigo_acceso')
       .eq('matricula', matricula.trim().toUpperCase())
-      .eq('curp', curp.trim().toUpperCase())
       .maybeSingle();
+    
     if (error) throw error;
-    if (!data) return { success: false, error: 'Matrícula o CURP incorrectos.' };
+    if (!data) return { success: false, error: 'Matrícula incorrecta.' };
+    
+    const inputPass = password.trim().toUpperCase();
+    const isCurp = data.curp && inputPass === data.curp.toUpperCase();
+    const isNip = data.codigo_acceso && inputPass === data.codigo_acceso.toUpperCase();
+    
+    if (!isCurp && !isNip) return { success: false, error: 'Contraseña incorrecta.' };
+
     return { success: true, alumno: data };
   } catch (e) { console.error('loginAlumno:', e); return { success: false, error: e.message }; }
 }
