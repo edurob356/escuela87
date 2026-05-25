@@ -515,20 +515,22 @@ export async function uploadAlumnosFromData(rows) {
 // ─── 18. LOGIN DE ALUMNO (Matrícula + CURP o NIP) ───────────────────────────────
 export async function loginAlumno(matricula, password) {
   try {
+    const inputUser = matricula.trim().toUpperCase();
     const { data, error } = await supabase
       .from('alumnos')
       .select('id, nombre_completo, grado, grupo, matricula, curp, codigo_acceso')
-      .eq('matricula', matricula.trim().toUpperCase())
+      .or(`matricula.eq.${inputUser},curp.eq.${inputUser}`)
       .maybeSingle();
     
     if (error) throw error;
-    if (!data) return { success: false, error: 'Matrícula incorrecta.' };
+    if (!data) return { success: false, error: 'Usuario no encontrado. Revisa tu matrícula o CURP.' };
     
     const inputPass = password.trim().toUpperCase();
     const isCurp = data.curp && inputPass === data.curp.toUpperCase();
     const isNip = data.codigo_acceso && inputPass === data.codigo_acceso.toUpperCase();
+    const isMatricula = data.matricula && inputPass === data.matricula.toUpperCase();
     
-    if (!isCurp && !isNip) return { success: false, error: 'Contraseña incorrecta.' };
+    if (!isCurp && !isNip && !isMatricula) return { success: false, error: 'Contraseña incorrecta.' };
 
     return { success: true, alumno: data };
   } catch (e) { console.error('loginAlumno:', e); return { success: false, error: e.message }; }
