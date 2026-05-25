@@ -186,27 +186,27 @@
   </div>
 
   <script type="module">
+    import { checkAuth } from '../../assets/js/auth-guard.js';
     import { getMisAsistencias, getConfigPeriodos, getParciales } from '../../assets/js/api-client.js';
 
-    // Verificar sesión
-    const alumnoRaw = sessionStorage.getItem('alumno');
-    if (!alumnoRaw) { window.location.href = 'login.html'; }
-    const alumno = JSON.parse(alumnoRaw);
+    // Verificar sesión con la lógica estándar
+    const session = checkAuth(['alumno']);
+    if (!session) { /* checkAuth ya maneja la redirección, pero por si acaso detenemos aquí */ throw new Error("No autenticado"); }
 
     // Mostrar datos del alumno + QR
-    document.getElementById('student-name').textContent = alumno.nombre_completo;
-    document.getElementById('student-initial').textContent = alumno.nombre_completo.charAt(0).toUpperCase();
-    document.getElementById('student-sub').textContent = `${alumno.grado || '?'}° ${alumno.grupo || ''} · Matrícula: ${alumno.matricula || '—'}`;
+    document.getElementById('student-name').textContent = session.nombre;
+    document.getElementById('student-initial').textContent = session.nombre.charAt(0).toUpperCase();
+    document.getElementById('student-sub').textContent = `${session.grupo || ''} · Matrícula: ${session.matricula || '—'}`;
 
     // Generar QR con el codigo_acceso guardado en sesión
-    if (alumno.codigo_acceso) {
-      generarQR(alumno.codigo_acceso, 'qrcode-display', 128);
+    if (session.codigo_acceso) {
+      generarQR(session.codigo_acceso, 'qrcode-display', 128);
     } else {
       document.getElementById('qrcode-display').innerHTML = '<p style="font-size:.7rem;color:#9ca3af;text-align:center;padding:1rem">Sin QR asignado.<br>Contacta a prefectura.</p>';
     }
     document.getElementById('logout-btn').addEventListener('click', () => {
-      sessionStorage.removeItem('alumno');
-      window.location.href = 'login.html';
+      localStorage.removeItem('sep_session');
+      window.location.href = '../../index.html';
     });
 
     // Generar QR del alumno
@@ -224,9 +224,9 @@
 
     // Pantalla completa
     document.getElementById('qr-fullscreen-btn').addEventListener('click', () => {
-      document.getElementById('fs-nombre').textContent    = alumno.nombre_completo;
-      document.getElementById('fs-matricula').textContent = `Matrícula: ${alumno.matricula || '—'}`;
-      generarQR(alumno.codigo_acceso, 'qr-fs-container', 240);
+      document.getElementById('fs-nombre').textContent    = session.nombre;
+      document.getElementById('fs-matricula').textContent = `Matrícula: ${session.matricula || '—'}`;
+      generarQR(session.codigo_acceso, 'qr-fs-container', 240);
       document.getElementById('qr-fullscreen').classList.add('active');
     });
     document.getElementById('close-fs-btn').addEventListener('click', () => {
@@ -293,7 +293,7 @@
     }
 
     async function load() {
-      allRecords = await getMisAsistencias(alumno.id);
+      allRecords = await getMisAsistencias(session.id);
       document.getElementById('loading').style.display = 'none';
       
       updateKPIs(allRecords, false);

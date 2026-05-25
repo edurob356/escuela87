@@ -244,7 +244,7 @@
 
       // 2. Cargar resumen del estudiante
       try {
-        const summary = await getStudentSummary();
+        const summary = await getStudentSummary(studentId);
         if (summary) {
           document.getElementById('stat-attendance').textContent = `${summary.attendance_percentage}%`;
           document.getElementById('stat-attendance-status').textContent = summary.attendance_status;

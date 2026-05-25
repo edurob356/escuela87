@@ -111,8 +111,16 @@
       const result = await loginAlumno(matricula, curp);
 
       if (result.success) {
-        sessionStorage.setItem('alumno', JSON.stringify(result.alumno));
-        window.location.href = 'mis-asistencias.html';
+        const alumno = result.alumno;
+        localStorage.setItem('sep_session', JSON.stringify({
+          tipo: 'alumno',
+          id: alumno.id,
+          nombre: alumno.nombre_completo,
+          matricula: alumno.matricula,
+          grupo: (alumno.grado || '') + '° ' + (alumno.grupo || ''),
+          codigo_acceso: alumno.codigo_acceso
+        }));
+        window.location.href = 'dashboard.html';
       } else {
         errorMsg.textContent = result.error || 'Matrícula o CURP incorrectos.';
         errorMsg.style.display = 'block';

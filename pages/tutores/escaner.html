@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="../../assets/css/style.css">
   
   <!-- html5-qrcode para escanear QR con la cámara -->
-  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 </head>
 <body class="bg-sepBeige font-sans text-gray-800 antialiased selection:bg-sepGold selection:text-sepBurgundyDark bg-fixed">
   <div class="flex h-screen overflow-hidden relative">
@@ -137,7 +137,7 @@
       document.getElementById('hoy-fecha').textContent = new Date().toLocaleDateString('es-MX', opts);
     });
 
-    let html5QrcodeScanner = null;
+    let html5QrCode = null;
     let isProcessing = false;
     let isCameraActive = false;
     
@@ -146,8 +146,8 @@
     const toggleCameraBtn = document.getElementById('toggle-camera-btn');
     const scanStatus = document.getElementById('scan-status');
 
-    async function onScanSuccess(decodedText, decodedResult) {
-      if (isProcessing) return; // Evitar múltiples escaneos rápidos
+    async function onScanSuccess(decodedText) {
+      if (isProcessing) return;
       
       isProcessing = true;
       scanStatus.classList.remove('hidden');
@@ -162,17 +162,14 @@
           alert('Error: ' + data.error);
         }
       } catch (err) {
+        console.error('Error de escaneo:', err);
         alert('Error de conexión con el servidor.');
       } finally {
         setTimeout(() => {
           isProcessing = false;
           scanStatus.classList.add('hidden');
-        }, 2000); // Pausa de 2 segundos antes de permitir otro escaneo
+        }, 2000);
       }
-    }
-
-    function onScanFailure(error) {
-      // Ignorar errores continuos mientras escanea
     }
 
     function addLogEntry(nombre, estado, hora) {
@@ -193,29 +190,74 @@
       logsContainer.prepend(div);
     }
 
-    toggleCameraBtn.addEventListener('click', () => {
+    toggleCameraBtn.addEventListener('click', async () => {
       if (!isCameraActive) {
-        // Iniciar cámara
-        html5QrcodeScanner = new Html5QrcodeScanner(
-          "reader",
-          { fps: 10, qrbox: {width: 250, height: 250} },
-          /* verbose= */ false);
-        html5QrcodeScanner.render(onScanSuccess, onScanFailure);
-        
-        toggleCameraBtn.textContent = 'Detener Cámara';
-        toggleCameraBtn.classList.replace('bg-sepGreen', 'bg-red-600');
-        toggleCameraBtn.classList.replace('hover:bg-sepGreenDark', 'hover:bg-red-700');
-        isCameraActive = true;
-      } else {
-        // Detener cámara
-        if (html5QrcodeScanner) {
-          html5QrcodeScanner.clear().then(() => {
-            toggleCameraBtn.textContent = 'Activar Cámara';
-            toggleCameraBtn.classList.replace('bg-red-600', 'bg-sepGreen');
-            toggleCameraBtn.classList.replace('hover:bg-red-700', 'hover:bg-sepGreenDark');
-            isCameraActive = false;
-          });
+        try {
+          toggleCameraBtn.textContent = 'Iniciando...';
+          toggleCameraBtn.disabled = true;
+
+          html5QrCode = new Html5Qrcode("reader");
+          
+          const config = {
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0
+          };
+
+          // Try rear camera first, fallback to any available
+          try {
+            await html5QrCode.start(
+              { facingMode: "environment" },
+              config,
+              onScanSuccess,
+              () => {} // ignore scan failures
+            );
+          } catch (envErr) {
+            console.warn('Rear camera failed, trying any camera:', envErr);
+            const devices = await Html5Qrcode.getCameras();
+            if (devices && devices.length > 0) {
+              await html5QrCode.start(
+                devices[0].id,
+                config,
+                onScanSuccess,
+                () => {}
+              );
+            } else {
+              throw new Error('No se encontraron cámaras disponibles.');
+            }
+          }
+          
+          toggleCameraBtn.textContent = 'Detener Cámara';
+          toggleCameraBtn.classList.replace('bg-sepGreen', 'bg-red-600');
+          toggleCameraBtn.classList.replace('hover:bg-sepGreenDark', 'hover:bg-red-700');
+          toggleCameraBtn.disabled = false;
+          isCameraActive = true;
+        } catch (err) {
+          console.error('Error al iniciar cámara:', err);
+          alert('Error al iniciar la cámara: ' + (err.message || err));
+          toggleCameraBtn.textContent = 'Activar Cámara';
+          toggleCameraBtn.disabled = false;
+          if (html5QrCode) {
+            try { await html5QrCode.clear(); } catch(e) {}
+            html5QrCode = null;
+          }
         }
+      } else {
+        try {
+          if (html5QrCode && html5QrCode.isScanning) {
+            await html5QrCode.stop();
+          }
+          if (html5QrCode) {
+            html5QrCode.clear();
+          }
+        } catch (e) {
+          console.warn('Error stopping scanner:', e);
+        }
+        html5QrCode = null;
+        toggleCameraBtn.textContent = 'Activar Cámara';
+        toggleCameraBtn.classList.replace('bg-red-600', 'bg-sepGreen');
+        toggleCameraBtn.classList.replace('hover:bg-red-700', 'hover:bg-sepGreenDark');
+        isCameraActive = false;
       }
     });
   </script>
@@ -223,17 +265,10 @@
   <style>
     /* Estilos personalizados para sobrescribir los del html5-qrcode */
     #reader { border: none !important; width: 100% !important; }
-    #reader__dashboard_section_csr span { font-family: 'Montserrat', sans-serif !important; }
-    #reader button { 
-      background: #111827; 
-      color: white; 
-      border: none; 
-      padding: 8px 16px; 
-      border-radius: 8px; 
-      font-weight: 600; 
-      cursor: pointer;
-      margin: 5px;
-    }
+    #reader video { border-radius: 12px; }
+    #reader__dashboard_section_csr { display: none !important; }
+    #reader__scan_region { min-height: 280px; }
+    #reader__scan_region video { width: 100% !important; height: auto !important; }
   </style>
 </body>
 </html>

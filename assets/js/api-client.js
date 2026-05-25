@@ -445,17 +445,39 @@ export async function getAsistenciasHoy(grado = '', grupo = '') {
 // ─── 12. ASISTENCIA POR QR ────────────────────────────────────────────────────
 export async function registrarAsistenciaQR(codigo) {
   try {
-    // Intentar por código de acceso primero, luego por matrícula/nombre
+    const trimmed = codigo.trim();
     let student = null;
+
+    // 1. Buscar por codigo_acceso (exacto)
     const { data: byAcceso } = await supabase
       .from('alumnos').select('id, nombre_completo, grado, grupo')
-      .eq('codigo_acceso', codigo).maybeSingle();
+      .eq('codigo_acceso', trimmed).maybeSingle();
     if (byAcceso) {
       student = byAcceso;
-    } else {
-      const arr = await searchStudents(codigo);
+    }
+
+    // 2. Buscar por matrícula (exacto, case-insensitive)
+    if (!student) {
+      const { data: byMatricula } = await supabase
+        .from('alumnos').select('id, nombre_completo, grado, grupo')
+        .ilike('matricula', trimmed).maybeSingle();
+      if (byMatricula) student = byMatricula;
+    }
+
+    // 3. Buscar por CURP (exacto, case-insensitive)
+    if (!student) {
+      const { data: byCurp } = await supabase
+        .from('alumnos').select('id, nombre_completo, grado, grupo')
+        .ilike('curp', trimmed).maybeSingle();
+      if (byCurp) student = byCurp;
+    }
+
+    // 4. Fallback: búsqueda general por nombre/matrícula parcial
+    if (!student) {
+      const arr = await searchStudents(trimmed);
       if (arr.length > 0) student = arr[0];
     }
+
     if (!student) return { success: false, error: 'Alumno no encontrado' };
 
     const now    = new Date().toTimeString().split(' ')[0];

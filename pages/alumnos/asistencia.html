@@ -125,7 +125,7 @@
       document.getElementById('current-date-display').textContent = 'Hoy es ' + new Date().toLocaleDateString('es-MX', options);
 
       try {
-        const attendanceHistory = await getStudentAttendance();
+        const attendanceHistory = await getStudentAttendance(session.id);
         const tableBody = document.querySelector('#attendance-history-table tbody');
         tableBody.innerHTML = '';
 

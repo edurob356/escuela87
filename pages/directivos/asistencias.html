@@ -276,7 +276,7 @@
         const pActivo = await getParcialActivo();
         if (pActivo) {
           document.getElementById('banner-parcial-nombre').textContent = pActivo.nombre;
-          document.getElementById('banner-parcial-fecha').textContent = \`\${pActivo.fecha_inicio} al \${pActivo.fecha_fin}\`;
+          document.getElementById('banner-parcial-fecha').textContent = `${pActivo.fecha_inicio} al ${pActivo.fecha_fin}`;
         } else {
           document.getElementById('banner-parcial-nombre').textContent = 'Ninguno (fuera de fechas)';
         }
