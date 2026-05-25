@@ -162,22 +162,10 @@
                        <th class="px-6 py-4">Estado</th>
                      </tr>
                    </thead>
-                   <tbody class="divide-y divide-gray-50">
-                     <tr class="hover:bg-gray-50 transition-colors">
-                       <td class="px-6 py-4 font-bold text-gray-800">12 Mar 2026</td>
-                       <td class="px-6 py-4 text-gray-600 font-medium">06:55 AM</td>
-                       <td class="px-6 py-4"><span class="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold">A tiempo</span></td>
-                     </tr>
-                     <tr class="hover:bg-gray-50 transition-colors">
-                       <td class="px-6 py-4 font-bold text-gray-800">11 Mar 2026</td>
-                       <td class="px-6 py-4 text-gray-600 font-medium">07:10 AM</td>
-                       <td class="px-6 py-4"><span class="bg-yellow-100 text-yellow-700 px-2 py-1 rounded text-xs font-bold">Retardo</span></td>
-                     </tr>
-                     <tr class="hover:bg-gray-50 transition-colors">
-                       <td class="px-6 py-4 font-bold text-gray-800">10 Mar 2026</td>
-                       <td class="px-6 py-4 text-gray-600 font-medium">06:58 AM</td>
-                       <td class="px-6 py-4"><span class="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold">A tiempo</span></td>
-                     </tr>
+                   <tbody id="attendance-tbody" class="divide-y divide-gray-50">
+                      <tr>
+                        <td colspan="3" class="px-6 py-8 text-center text-gray-400 font-medium animate-pulse">Cargando historial de asistencias...</td>
+                      </tr>
                    </tbody>
                  </table>
                </div>
@@ -232,7 +220,7 @@
 
   <script src="../../assets/js/main.js"></script>
   <script type="module">
-    import { getAnnouncements, getStudentSummary, getStudentAttendance } from '../../assets/js/api-client.js';
+    import { getAnnouncements, getStudentSummary, getStudentAttendance, getMisAsistencias } from '../../assets/js/api-client.js';
     import { checkAuth } from '../../assets/js/auth-guard.js';
 
     document.addEventListener('DOMContentLoaded', async () => {
@@ -272,7 +260,51 @@
         console.error("Error loading student summary:", e);
       }
 
-      // 3. Lógica para mostrar Código QR
+      // 3. Cargar historial de asistencias (Datos Reales)
+      try {
+        const tbody = document.getElementById('attendance-tbody');
+        const asistencias = await getMisAsistencias(studentId);
+        
+        if (!asistencias || asistencias.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="3" class="px-6 py-6 text-center text-gray-500 font-medium">Aún no hay registros de asistencia.</td></tr>`;
+        } else {
+          tbody.innerHTML = asistencias.slice(0, 10).map(a => {
+            const fechaObj = new Date(a.date + 'T00:00:00');
+            const fechaFormateada = fechaObj.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+            
+            // Format time (e.g. 07:15:00 -> 07:15 AM)
+            let timeStr = a.entry_time || '--:--';
+            if (a.entry_time) {
+              const [h, m] = a.entry_time.split(':');
+              const ampm = Number(h) >= 12 ? 'PM' : 'AM';
+              const h12 = (Number(h) % 12) || 12;
+              timeStr = `${h12.toString().padStart(2, '0')}:${m} ${ampm}`;
+            }
+
+            let badgeHtml = '';
+            if (a.status === 'Presente') {
+              badgeHtml = `<span class="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold">A tiempo</span>`;
+            } else if (a.status === 'Retardo') {
+              badgeHtml = `<span class="bg-yellow-100 text-yellow-700 px-2 py-1 rounded text-xs font-bold">Retardo</span>`;
+            } else {
+              badgeHtml = `<span class="bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-bold">Falta</span>`;
+            }
+
+            return `
+              <tr class="hover:bg-gray-50 transition-colors">
+                <td class="px-6 py-4 font-bold text-gray-800">${fechaFormateada}</td>
+                <td class="px-6 py-4 text-gray-600 font-medium">${timeStr}</td>
+                <td class="px-6 py-4">${badgeHtml}</td>
+              </tr>
+            `;
+          }).join('');
+        }
+      } catch (e) {
+        console.error("Error loading attendance history:", e);
+        document.getElementById('attendance-tbody').innerHTML = `<tr><td colspan="3" class="px-6 py-6 text-center text-red-500 font-medium">Error al cargar el historial.</td></tr>`;
+      }
+
+      // 4. Lógica para mostrar Código QR
       const btnShowQr = document.getElementById('btn-show-qr');
       const qrContainer = document.getElementById('qr-container');
       const qrPlaceholder = document.getElementById('qr-placeholder');
