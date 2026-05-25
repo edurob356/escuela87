@@ -221,21 +221,21 @@
   <script type="module">
     import { 
       getConfigPeriodos, saveConfigPeriodos, generarParciales, 
-      getParciales, deleteParcial, 
+      getParciales, deleteParcial, createParcial,
       getDiasInhabiles, createDiaInhabil, deleteDiaInhabil
     } from '../../assets/js/api-client.js';
 
     // Tabs logic
     const tabs = ['config', 'parciales', 'inhabiles'];
-    tabs.forEach(tab => {
-      document.getElementById(\`tab-btn-\${tab}\`).addEventListener('click', (e) => {
-        tabs.forEach(t => {
-          document.getElementById(\`tab-\${t}\`).classList.add('hidden');
-          const btn = document.getElementById(\`tab-btn-\${t}\`);
-          btn.classList.remove('border-sepBurgundy', 'text-sepBurgundy');
-          btn.classList.add('border-transparent', 'text-gray-500');
+    tabs.forEach(function(tab) {
+      document.getElementById('tab-btn-' + tab).addEventListener('click', function(e) {
+        tabs.forEach(function(t) {
+          document.getElementById('tab-' + t).classList.add('hidden');
+          var b = document.getElementById('tab-btn-' + t);
+          b.classList.remove('border-sepBurgundy', 'text-sepBurgundy');
+          b.classList.add('border-transparent', 'text-gray-500');
         });
-        document.getElementById(\`tab-\${tab}\`).classList.remove('hidden');
+        document.getElementById('tab-' + tab).classList.remove('hidden');
         e.target.classList.remove('border-transparent', 'text-gray-500');
         e.target.classList.add('border-sepBurgundy', 'text-sepBurgundy');
       });
@@ -247,12 +247,13 @@
     const btnSaveConfig = document.getElementById('btn-save-config');
     const msgConfig = document.getElementById('config-status-msg');
 
-    toggleConfig.addEventListener('change', () => {
+    toggleConfig.addEventListener('change', function() {
       if (toggleConfig.checked) {
         configFormContainer.classList.remove('opacity-50', 'pointer-events-none');
+        btnSaveConfig.classList.add('animate-pulse', 'ring-4', 'ring-sepGold');
       } else {
         configFormContainer.classList.add('opacity-50', 'pointer-events-none');
-        // Save state immediately when disabling
+        btnSaveConfig.classList.remove('animate-pulse', 'ring-4', 'ring-sepGold');
         saveConfigPeriodos({ activo: false });
       }
     });
@@ -272,7 +273,7 @@
       loadInhabiles();
     }
 
-    btnSaveConfig.addEventListener('click', async () => {
+    btnSaveConfig.addEventListener('click', async function() {
       const cfg = {
         activo: toggleConfig.checked,
         tipo_ciclo: document.getElementById('tipo-ciclo').value,
@@ -290,12 +291,13 @@
         await generarParciales(cfg);
         msgConfig.textContent = 'Configuración guardada y parciales generados.';
         msgConfig.className = 'text-sm font-bold text-center text-green-600 block';
+        btnSaveConfig.classList.remove('animate-pulse', 'ring-4', 'ring-sepGold');
         loadParciales();
       } else {
         msgConfig.textContent = 'Error al guardar.';
         msgConfig.className = 'text-sm font-bold text-center text-red-600 block';
       }
-      setTimeout(() => msgConfig.classList.add('hidden'), 3000);
+      setTimeout(function() { msgConfig.classList.add('hidden'); }, 3000);
       btnSaveConfig.textContent = 'Guardar y Generar Parciales';
     });
 
@@ -308,26 +310,24 @@
         return;
       }
       const today = new Date().toISOString().split('T')[0];
-      tbody.innerHTML = parciales.map(p => {
-        let estado = '<span class="text-gray-500">Próximo</span>';
+      tbody.innerHTML = parciales.map(function(p) {
+        var estado = '<span class="text-gray-500">Próximo</span>';
         if (today >= p.fecha_inicio && today <= p.fecha_fin) estado = '<span class="text-green-600 font-bold">En Curso</span>';
         if (today > p.fecha_fin) estado = '<span class="text-sepBurgundy font-bold">Terminado</span>';
         
-        return \`
-          <tr class="hover:bg-gray-50">
-            <td class="px-4 py-3 font-semibold text-gray-800">\${p.nombre}</td>
-            <td class="px-4 py-3">\${p.fecha_inicio}</td>
-            <td class="px-4 py-3">\${p.fecha_fin}</td>
-            <td class="px-4 py-3">\${estado}</td>
-            <td class="px-4 py-3 text-right">
-              <button class="delete-parcial-btn text-red-500 hover:text-red-700 hover:underline" data-id="\${p.id}">Eliminar</button>
-            </td>
-          </tr>
-        \`;
+        return '<tr class="hover:bg-gray-50">' +
+            '<td class="px-4 py-3 font-semibold text-gray-800">' + p.nombre + '</td>' +
+            '<td class="px-4 py-3">' + p.fecha_inicio + '</td>' +
+            '<td class="px-4 py-3">' + p.fecha_fin + '</td>' +
+            '<td class="px-4 py-3">' + estado + '</td>' +
+            '<td class="px-4 py-3 text-right">' +
+              '<button class="delete-parcial-btn text-red-500 hover:text-red-700 hover:underline" data-id="' + p.id + '">Eliminar</button>' +
+            '</td>' +
+          '</tr>';
       }).join('');
       
-      document.querySelectorAll('.delete-parcial-btn').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
+      document.querySelectorAll('.delete-parcial-btn').forEach(function(btn) {
+        btn.addEventListener('click', async function(e) {
           if (confirm('¿Eliminar parcial?')) {
             await deleteParcial(e.target.dataset.id);
             loadParciales();
@@ -344,18 +344,18 @@
         tbody.innerHTML = '<tr><td colspan="3" class="text-center py-4 text-gray-500">No hay días inhábiles registrados.</td></tr>';
         return;
       }
-      tbody.innerHTML = dias.map(d => \`
-        <tr class="hover:bg-gray-50">
-          <td class="px-4 py-3 font-semibold text-gray-800">\${d.fecha}</td>
-          <td class="px-4 py-3 text-gray-600">\${d.razon || '—'}</td>
-          <td class="px-4 py-3 text-right">
-            <button class="delete-inhabil-btn text-red-500 hover:text-red-700 hover:underline" data-id="\${d.id}">Eliminar</button>
-          </td>
-        </tr>
-      \`).join('');
+      tbody.innerHTML = dias.map(function(d) {
+        return '<tr class="hover:bg-gray-50">' +
+          '<td class="px-4 py-3 font-semibold text-gray-800">' + d.fecha + '</td>' +
+          '<td class="px-4 py-3 text-gray-600">' + (d.razon || '—') + '</td>' +
+          '<td class="px-4 py-3 text-right">' +
+            '<button class="delete-inhabil-btn text-red-500 hover:text-red-700 hover:underline" data-id="' + d.id + '">Eliminar</button>' +
+          '</td>' +
+        '</tr>';
+      }).join('');
 
-      document.querySelectorAll('.delete-inhabil-btn').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
+      document.querySelectorAll('.delete-inhabil-btn').forEach(function(btn) {
+        btn.addEventListener('click', async function(e) {
           if (confirm('¿Eliminar día inhábil?')) {
             await deleteDiaInhabil(e.target.dataset.id);
             loadInhabiles();
@@ -364,7 +364,7 @@
       });
     }
 
-    document.getElementById('btn-add-inhabil').addEventListener('click', async () => {
+    document.getElementById('btn-add-inhabil').addEventListener('click', async function() {
       const fecha = document.getElementById('inhabil-fecha').value;
       const razon = document.getElementById('inhabil-razon').value;
       if (!fecha) return alert('Selecciona una fecha');
@@ -372,6 +372,27 @@
       document.getElementById('inhabil-fecha').value = '';
       document.getElementById('inhabil-razon').value = '';
       loadInhabiles();
+    });
+
+    document.getElementById('btn-add-parcial').addEventListener('click', async function() {
+      const nombre = prompt("Nombre del parcial (ej. 1er Bimestre - Parcial 1):");
+      if (!nombre) return;
+      const fechaInicio = prompt("Fecha de inicio (YYYY-MM-DD):");
+      if (!fechaInicio) return;
+      const fechaFin = prompt("Fecha de fin (YYYY-MM-DD):");
+      if (!fechaFin) return;
+      
+      const res = await createParcial({
+        nombre: nombre,
+        fecha_inicio: fechaInicio,
+        fecha_fin: fechaFin,
+        activo: true
+      });
+      if (res.success) {
+        loadParciales();
+      } else {
+        alert("Error al crear parcial: " + (res.error || "Desconocido"));
+      }
     });
 
     loadConfig();

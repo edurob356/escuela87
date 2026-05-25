@@ -14,6 +14,9 @@
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
   
+  <!-- QRCode.js Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  
   <!-- Tailwind Config & Custom Styles -->
   <script src="../../assets/js/tailwind-config.js"></script>
   <link rel="stylesheet" href="../../assets/css/style.css">
@@ -198,14 +201,25 @@
           <section class="lg:col-span-1">
              <div class="bg-white rounded-3xl shadow-soft border border-gray-100 p-8 flex flex-col items-center text-center">
                 <h3 class="font-bold text-gray-800 font-heading mb-6">Mi Credencial Digital</h3>
-                <div class="w-48 h-48 bg-gray-100 rounded-2xl p-4 shadow-inner mb-6 relative group overflow-hidden">
-                   <div class="w-full h-full border-4 border-dashed border-gray-200 rounded-xl flex items-center justify-center opacity-40">
+                
+                <div class="w-48 min-h-48 bg-gray-100 rounded-2xl p-4 shadow-inner mb-6 relative group overflow-hidden flex flex-col items-center justify-center">
+                   
+                   <div id="qr-container" class="hidden w-full h-full flex items-center justify-center bg-white p-2 rounded-xl">
+                      <div id="qrcode"></div>
+                   </div>
+
+                   <div id="qr-placeholder" class="w-full h-full border-4 border-dashed border-gray-200 rounded-xl flex items-center justify-center opacity-40 absolute inset-4">
                       <svg class="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm14 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path></svg>
                    </div>
-                   <div class="absolute inset-0 bg-gradient-to-t from-sepBurgundy/20 to-transparent flex flex-col items-center justify-end p-4">
+                   <div class="absolute inset-0 bg-gradient-to-t from-sepBurgundy/20 to-transparent flex flex-col items-center justify-end p-4 pointer-events-none">
                       <p class="text-[8px] font-bold text-sepBurgundy uppercase tracking-widest bg-white px-2 py-1 rounded shadow-sm">Token Dinámico Activo</p>
                    </div>
                 </div>
+
+                <button id="btn-show-qr" class="mb-4 bg-sepBurgundy text-white font-bold py-2 px-6 rounded-full shadow-md hover:bg-sepBurgundyDark hover:shadow-lg transition-all duration-300 transform hover:-translate-y-0.5">
+                  Ver mi código QR
+                </button>
+
                 <p class="text-sm text-gray-500 leading-relaxed mb-6">Usa este código para registrar tu entrada y salida del plantel en los tótems automáticos.</p>
            </section>
         </div>
@@ -257,6 +271,41 @@
       } catch (e) {
         console.error("Error loading student summary:", e);
       }
+
+      // 3. Lógica para mostrar Código QR
+      const btnShowQr = document.getElementById('btn-show-qr');
+      const qrContainer = document.getElementById('qr-container');
+      const qrPlaceholder = document.getElementById('qr-placeholder');
+      const qrcodeElement = document.getElementById('qrcode');
+      let qrGenerated = false;
+
+      btnShowQr.addEventListener('click', () => {
+        if (qrContainer.classList.contains('hidden')) {
+          qrContainer.classList.remove('hidden');
+          qrPlaceholder.classList.add('hidden');
+          btnShowQr.textContent = 'Ocultar código QR';
+          btnShowQr.classList.replace('bg-sepBurgundy', 'bg-gray-600');
+          btnShowQr.classList.replace('hover:bg-sepBurgundyDark', 'hover:bg-gray-700');
+          
+          if (!qrGenerated) {
+            new QRCode(qrcodeElement, {
+              text: session.codigo_acceso || session.matricula, // Usa el código de acceso, si no, la matrícula
+              width: 140,
+              height: 140,
+              colorDark : "#4c1328", // sepBurgundy
+              colorLight : "#ffffff",
+              correctLevel : QRCode.CorrectLevel.H
+            });
+            qrGenerated = true;
+          }
+        } else {
+          qrContainer.classList.add('hidden');
+          qrPlaceholder.classList.remove('hidden');
+          btnShowQr.textContent = 'Ver mi código QR';
+          btnShowQr.classList.replace('bg-gray-600', 'bg-sepBurgundy');
+          btnShowQr.classList.replace('hover:bg-gray-700', 'hover:bg-sepBurgundyDark');
+        }
+      });
 
       // IMPORTANTE: Historial de asistencia y avisos fueron movidos a sus respectivas páginas
     });
